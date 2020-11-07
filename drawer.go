@@ -4,6 +4,7 @@ import (
 	"context"
 	"image/color"
 	"math"
+	"sync/atomic"
 	"time"
 
 	"github.com/gotk3/gotk3/cairo"
@@ -45,6 +46,8 @@ type Drawer struct {
 	binWidth float64
 	// channels; 1 if monophonic
 	channels int
+
+	paused uint32
 
 	drawState drawState
 }
@@ -140,6 +143,15 @@ func (d *Drawer) ConnectSizeAllocate(c Connector) (glib.SignalHandle, error) {
 // this method is used, then the caller does not need to call Stop().
 func (d *Drawer) ConnectDestroy(c Connector) (glib.SignalHandle, error) {
 	return c.Connect("destroy", d.cancel)
+}
+
+// SetPaused will silent all inputs if true.
+func (d *Drawer) SetPaused(paused bool) {
+	if paused {
+		atomic.StoreUint32(&d.paused, 1)
+	} else {
+		atomic.StoreUint32(&d.paused, 0)
+	}
 }
 
 // AllocatedSizeGetter is any widget that can be obtained dimensions of. This is
@@ -350,20 +362,27 @@ func (d *Drawer) start() error {
 	})
 
 	for {
-		if d.session.ReadyRead() < d.cfg.SampleSize {
-			continue
-		}
+		if atomic.LoadUint32(&d.paused) == 1 {
+			writeZeroBuf(inputBufs)
 
-		if err := d.session.Read(d.ctx); err != nil {
-			return errors.Wrap(err, "failed to read audio input")
+			// don't reset the numbers.
+
+		} else {
+			if d.session.ReadyRead() < d.cfg.SampleSize {
+				continue
+			}
+
+			if err := d.session.Read(d.ctx); err != nil {
+				return errors.Wrap(err, "failed to read audio input")
+			}
+
+			peak = 0
+			scale = 1.0
 		}
 
 		if barVar := d.bars(); barVar != barCount {
 			barCount = spectrum.Recalculate(barVar)
 		}
-
-		peak = 0
-		scale = 1.0
 
 		for idx, buf := range barBufs {
 			window.CosSum(inputBufs[idx], d.cfg.WinVar)
@@ -400,6 +419,14 @@ func (d *Drawer) start() error {
 			return nil
 		case <-timer.C:
 			timer.Reset(drawDelay)
+		}
+	}
+}
+
+func writeZeroBuf(buf [][]input.Sample) {
+	for i := range buf {
+		for j := range buf[i] {
+			buf[i][j] = 0
 		}
 	}
 }

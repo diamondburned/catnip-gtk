@@ -38,9 +38,21 @@ func main() {
 		}
 	}()
 
+	pause, _ := gtk.ToggleButtonNewWithLabel("Pause")
+	pause.Connect("toggled", func() {
+		a.SetPaused(pause.GetActive())
+	})
+	pause.SetHAlign(gtk.ALIGN_CENTER)
+	pause.Show()
+
+	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	box.PackStart(a, true, true, 0)
+	box.PackStart(pause, false, false, 8)
+	box.Show()
+
 	w, _ := gtk.WindowNew(gtk.WINDOW_TOPLEVEL)
-	w.SetDefaultSize(1000, 100)
-	w.Add(a)
+	w.SetDefaultSize(1000, 150)
+	w.Add(box)
 	w.Show()
 	w.Connect("destroy", gtk.MainQuit)
 

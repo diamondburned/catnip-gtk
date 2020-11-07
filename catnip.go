@@ -63,8 +63,8 @@ func NewConfig() Config {
 
 // Area is the area that Catnip draws onto.
 type Area struct {
+	*Drawer
 	gtk.DrawingArea
-	drawer *Drawer
 }
 
 // New creates a new Catnip DrawingArea from the given config.
@@ -78,12 +78,7 @@ func New(cfg Config) *Area {
 	drawer.ConnectSizeAllocate(draw)
 
 	return &Area{
+		Drawer:      drawer,
 		DrawingArea: *draw,
-		drawer:      drawer,
 	}
-}
-
-// Start starts drawing the visualizer onto the area.
-func (a *Area) Start() error {
-	return a.drawer.Start()
 }
