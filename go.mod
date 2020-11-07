@@ -4,7 +4,7 @@ go 1.15
 
 replace github.com/gotk3/gotk3 => github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a
 
-replace github.com/noriah/catnip => ../catnip/
+replace github.com/noriah/catnip => github.com/diamondburned/tavis v0.0.0-20201107024128-229ebc1a9c2b
 
 require (
 	github.com/gotk3/gotk3 v0.0.0-00010101000000-000000000000
