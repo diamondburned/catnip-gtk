@@ -74,9 +74,7 @@ type cairoColor [4]float64
 type Area struct {
 	gtk.DrawingArea
 	cfg Config
-
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx context.Context
 
 	backend input.Backend
 	session input.Session
@@ -97,9 +95,8 @@ func New(cfg Config) *Area {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	area := &Area{
-		cfg:    cfg,
-		ctx:    ctx,
-		cancel: cancel,
+		cfg: cfg,
+		ctx: ctx,
 
 		channels: 2,
 		// Weird Cairo tricks require multiplication and division by 2. Unsure
@@ -119,7 +116,7 @@ func New(cfg Config) *Area {
 	draw.Connect("size-allocate", func() {
 		area.drawState.SetWidth(draw.GetAllocatedWidth())
 	})
-	draw.Connect("destroy", area.stop)
+	draw.Connect("destroy", cancel)
 
 	area.DrawingArea = *draw
 
@@ -150,20 +147,6 @@ func getColor(c color.Color, rgba *gdk.RGBA) (color cairoColor) {
 	return
 }
 
-func (a *Area) stop() {
-	a.cancel()
-
-	if a.session == nil {
-		return
-	}
-
-	a.session.Stop()
-	a.session = nil
-
-	a.backend.Close()
-	a.backend = nil
-}
-
 // Start starts the area. This function blocks permanently until the audio loop
 // is dead, so it should be called inside a goroutine. This function should not
 // be called more than once, else it will panic.
@@ -180,7 +163,9 @@ func (a *Area) Start() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize input backend")
 	}
+
 	a.backend = backend
+	defer a.backend.Close()
 
 	device, err := getDevice(backend, a.cfg)
 	if err != nil {
@@ -198,7 +183,9 @@ func (a *Area) Start() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
+
 	a.session = session
+	defer a.session.Stop()
 
 	if err := session.Start(); err != nil {
 		return errors.Wrap(err, "failed to start input session")
@@ -324,12 +311,9 @@ func (a *Area) start() error {
 		select {
 		case <-a.ctx.Done():
 			return nil
-		default:
-			// micro-optimization
+		case <-timer.C:
+			timer.Reset(drawDelay)
 		}
-
-		<-timer.C
-		timer.Reset(drawDelay)
 	}
 }
 
