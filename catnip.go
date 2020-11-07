@@ -152,8 +152,16 @@ func getColor(c color.Color, rgba *gdk.RGBA) (color cairoColor) {
 
 func (a *Area) stop() {
 	a.cancel()
+
+	if a.session == nil {
+		return
+	}
+
 	a.session.Stop()
+	a.session = nil
+
 	a.backend.Close()
+	a.backend = nil
 }
 
 // Start starts the area. This function blocks permanently until the audio loop
