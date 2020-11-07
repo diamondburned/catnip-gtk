@@ -204,11 +204,14 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 				lCol = xCol + d.cfg.BarWidth
 			}
 
-			cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
-			cr.MoveTo(xCol, height-stop)
-			cr.LineTo(xCol, height)
-			cr.Stroke()
-			cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
+			// Don't draw if stop is NaN for some reason.
+			if !math.IsNaN(stop) {
+				cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
+				cr.MoveTo(xCol, height-stop)
+				cr.LineTo(xCol, height)
+				cr.Stroke()
+				cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
+			}
 
 			xCol++
 		}
@@ -219,7 +222,11 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 }
 
 func calculateBar(value, height, clamp float64) float64 {
-	return math.Max(math.Min(value, height), clamp) - clamp
+	bar := math.Max(math.Min(value, height), clamp) - clamp
+	// Rescale the lost value.
+	bar += bar * (clamp / height)
+
+	return bar
 }
 
 // Stop signals the event loop to stop. It does not block.
@@ -356,7 +363,7 @@ func (d *Drawer) start() error {
 		}
 
 		peak = 0
-		scale = 0
+		scale = 1.0
 
 		for idx, buf := range barBufs {
 			window.CosSum(inputBufs[idx], d.cfg.WinVar)
