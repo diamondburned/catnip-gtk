@@ -26,6 +26,7 @@ type Config struct {
 	SpaceWidth   float64 // not really pixels
 	SampleSize   int
 	Monophonic   bool
+	MinimumClamp float64 // height before visible
 	SpectrumType dsp.SpectrumType
 }
 
@@ -48,6 +49,7 @@ func NewConfig() Config {
 		SpaceWidth:   5,
 		SampleSize:   48000 / 30, // 30fps
 		Monophonic:   false,
+		MinimumClamp: 1,
 		SpectrumType: dsp.TypeDefault,
 
 		Scaling: ScalingConfig{

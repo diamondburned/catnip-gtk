@@ -18,9 +18,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// minClamp is the minimum value for the visualizer before it is clamped to 0.
-const minClamp = 1
-
 type cairoColor [4]float64
 
 // DrawQueuer is a custom widget interface that allows draw queueing.
@@ -127,22 +124,22 @@ type Connector interface {
 var _ Connector = (*gtk.Widget)(nil)
 
 // ConnectDraw connects the given connector to the Draw method.
-func (d *Drawer) ConnectDraw(c Connector) {
-	c.Connect("draw", d.Draw)
+func (d *Drawer) ConnectDraw(c Connector) (glib.SignalHandle, error) {
+	return c.Connect("draw", d.Draw)
 }
 
 // ConnectSizeAllocate connects the given connector to update the width of the
 // drawer, and consequently, the number of bars drawn.
-func (d *Drawer) ConnectSizeAllocate(c Connector) {
-	c.Connect("size-allocate", func() {
+func (d *Drawer) ConnectSizeAllocate(c Connector) (glib.SignalHandle, error) {
+	return c.Connect("size-allocate", func() {
 		d.drawState.SetWidth(c.GetAllocatedWidth())
 	})
 }
 
 // ConnectDestroy connects the destroy signal to destroy the drawer as well. If
 // this method is used, then the caller does not need to call Stop().
-func (d *Drawer) ConnectDestroy(c Connector) {
-	c.Connect("destroy", d.cancel)
+func (d *Drawer) ConnectDestroy(c Connector) (glib.SignalHandle, error) {
+	return c.Connect("destroy", d.cancel)
 }
 
 // AllocatedSizeGetter is any widget that can be obtained dimensions of. This is
@@ -152,7 +149,8 @@ type AllocatedSizeGetter interface {
 	GetAllocatedHeight() int
 }
 
-// draw is bound to the draw signal.
+// Draw is bound to the draw signal. Although Draw won't crash if Drawer is not
+// started yet, the drawn result is undefined.
 func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 	var (
 		width  = float64(w.GetAllocatedWidth())
@@ -185,7 +183,7 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 
 	for _, chBins := range d.drawState.barBufs {
 		var (
-			stop    = calculateBar(chBins[xBin]*scale, height)
+			stop    = calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
 			lCol    = xCol + d.cfg.BarWidth
 			lColMax = xCol + (d.binWidth * float64(d.drawState.barCount)) - spaceWidth
 		)
@@ -200,7 +198,7 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 					break
 				}
 
-				stop = calculateBar(chBins[xBin]*scale, height)
+				stop = calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
 
 				xCol += spaceWidth
 				lCol = xCol + d.cfg.BarWidth
@@ -220,8 +218,8 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 	}
 }
 
-func calculateBar(value, height float64) float64 {
-	return math.Max(math.Min(value, height), minClamp) - minClamp
+func calculateBar(value, height, clamp float64) float64 {
+	return math.Max(math.Min(value, height), clamp) - clamp
 }
 
 // Stop signals the event loop to stop. It does not block.
