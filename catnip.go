@@ -6,6 +6,7 @@ import (
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/noriah/catnip/dsp"
+	"github.com/noriah/catnip/dsp/window"
 )
 
 // Config is the catnip config.
@@ -17,6 +18,7 @@ type Config struct {
 
 	DrawOptions
 
+	WindowFn     window.Function // default CosSum, a0 = 0.50
 	Scaling      ScalingConfig
 	SampleRate   float64
 	SmoothFactor float64
@@ -79,9 +81,11 @@ func NewConfig() Config {
 		Backend: "portaudio",
 		Device:  "",
 
+		// Default to CosSum with WinVar = 0.50.
+		WindowFn: func(buf []float64) { window.CosSum(buf, 0.50) },
+
 		SampleRate:   48000,
 		SmoothFactor: 65.69,
-		WinVar:       0.50,
 		SampleSize:   48000 / 30, // 30fps
 		Monophonic:   false,
 		MinimumClamp: 1,

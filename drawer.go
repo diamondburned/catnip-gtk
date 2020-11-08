@@ -12,7 +12,6 @@ import (
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/noriah/catnip/dsp"
-	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/util"
@@ -392,7 +391,7 @@ func (d *Drawer) start() error {
 		}
 
 		for idx, buf := range barBufs {
-			window.CosSum(inputBufs[idx], d.cfg.WinVar)
+			d.cfg.WindowFn(inputBufs[idx])
 			plans[idx].Execute()
 			spectrum.Process(buf, fftBuf)
 
