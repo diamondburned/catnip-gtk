@@ -25,6 +25,7 @@ func main() {
 	config.SpaceWidth = 1
 	config.SmoothFactor = 39.29
 	config.Monophonic = true
+	config.ForceEven = true // sharpen
 
 	a := catnip.New(config)
 	a.Show()

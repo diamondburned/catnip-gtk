@@ -63,8 +63,8 @@ func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
 		ctx:    ctx,
 		cancel: cancel,
 
-		fg: getColor(cfg.ForegroundColor, nil, cairoColor{0, 0, 0, 1}),
-		bg: getColor(cfg.BackgroundColor, nil, cairoColor{0, 0, 0, 0}),
+		fg: getColor(cfg.Colors.Foreground, nil, cairoColor{0, 0, 0, 1}),
+		bg: getColor(cfg.Colors.Background, nil, cairoColor{0, 0, 0, 0}),
 
 		channels: 2,
 		// Weird Cairo tricks require multiplication and division by 2. Unsure
@@ -113,8 +113,8 @@ type StyleContexter interface {
 func (d *Drawer) SetWidgetStyle(widgetStyler StyleContexter) {
 	styleCtx, _ := widgetStyler.GetStyleContext()
 
-	d.fg = getColor(d.cfg.ForegroundColor, styleCtx.GetColor(gtk.STATE_FLAG_NORMAL), d.fg)
-	d.bg = getColor(d.cfg.BackgroundColor, gdk.NewRGBA(0, 0, 0, 0), d.bg)
+	d.fg = getColor(d.cfg.Colors.Foreground, styleCtx.GetColor(gtk.STATE_FLAG_NORMAL), d.fg)
+	d.bg = getColor(d.cfg.Colors.Background, gdk.NewRGBA(0, 0, 0, 0), d.bg)
 }
 
 // Connector is the interface to connect any widget.
@@ -165,13 +165,14 @@ type AllocatedSizeGetter interface {
 // started yet, the drawn result is undefined.
 func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 	var (
-		width  = float64(w.GetAllocatedWidth())
-		height = float64(w.GetAllocatedHeight())
+		width  = float64(d.cfg.even(w.GetAllocatedWidth()))
+		height = float64(d.cfg.even(w.GetAllocatedHeight()))
 	)
 
 	cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
-	cr.SetLineWidth(float64(d.cfg.BarWidth) / 2)
-	cr.SetLineCap(cairo.LINE_CAP_SQUARE)
+	cr.SetLineWidth(d.cfg.BarWidth / 2)
+	cr.SetLineJoin(d.cfg.LineJoin)
+	cr.SetLineCap(d.cfg.LineCap)
 
 	// TODO: maybe reduce lock contention somehow.
 	d.drawState.Lock()
@@ -219,8 +220,8 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 			// Don't draw if stop is NaN for some reason.
 			if !math.IsNaN(stop) {
 				cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
-				cr.MoveTo(xCol, height-stop)
-				cr.LineTo(xCol, height)
+				cr.MoveTo(d.cfg.Offsets.apply(xCol, height-stop))
+				cr.LineTo(d.cfg.Offsets.apply(xCol, height))
 				cr.Stroke()
 				cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
 			}

@@ -3,6 +3,7 @@ package catnip
 import (
 	"image/color"
 
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/noriah/catnip/dsp"
 )
@@ -14,22 +15,57 @@ type Config struct {
 	// Device is the device name from list-devices
 	Device string
 
-	Scaling ScalingConfig
+	DrawOptions
 
-	ForegroundColor color.Color // use Gtk if nil
-	BackgroundColor color.Color // transparent if nil
-
+	Scaling      ScalingConfig
 	SampleRate   float64
 	SmoothFactor float64
 	WinVar       float64
-	BarWidth     float64 // not really pixels
-	SpaceWidth   float64 // not really pixels
 	SampleSize   int
 	Monophonic   bool
 	MinimumClamp float64 // height before visible
 	SpectrumType dsp.SpectrumType
 }
 
+// DrawOptions is the option for Cairo draws.
+type DrawOptions struct {
+	LineCap  cairo.LineCap  // default BUTT
+	LineJoin cairo.LineJoin // default MITER
+
+	Colors     Colors
+	Offsets    DrawOffsets
+	BarWidth   float64 // not really pixels
+	SpaceWidth float64 // not really pixels
+
+	// ForceEven will round the width and height to be even. This will force
+	// Cairo to always draw the bars sharply.
+	ForceEven bool
+}
+
+func (opts DrawOptions) even(n int) int {
+	if !opts.ForceEven {
+		return n
+	}
+	return n - (n % 2)
+}
+
+// DrawOffsets controls the offset for the Drawer.
+type DrawOffsets struct {
+	X, Y float64
+}
+
+// apply applies the draw offset.
+func (offset DrawOffsets) apply(x, y float64) (float64, float64) {
+	return x + offset.X, y + offset.Y
+}
+
+// Colors is the color settings for the Drawer.
+type Colors struct {
+	Foreground color.Color // use Gtk if nil
+	Background color.Color // transparent if nil
+}
+
+// ScalingConfig is the scaling settings for the visualizer.
 type ScalingConfig struct {
 	StaticScale    float64 // 0 for dynamic scale
 	SlowWindow     float64
@@ -46,12 +82,17 @@ func NewConfig() Config {
 		SampleRate:   48000,
 		SmoothFactor: 65.69,
 		WinVar:       0.50,
-		BarWidth:     10,
-		SpaceWidth:   5,
 		SampleSize:   48000 / 30, // 30fps
 		Monophonic:   false,
 		MinimumClamp: 1,
 		SpectrumType: dsp.TypeDefault,
+
+		DrawOptions: DrawOptions{
+			LineCap:    cairo.LINE_CAP_BUTT,
+			LineJoin:   cairo.LINE_JOIN_MITER,
+			BarWidth:   10,
+			SpaceWidth: 5,
+		},
 
 		Scaling: ScalingConfig{
 			SlowWindow:     5,
