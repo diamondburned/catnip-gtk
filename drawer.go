@@ -298,23 +298,9 @@ func (d *Drawer) start() error {
 		fftBuf   = make([]complex128, d.cfg.SampleSize/2+1)
 		spBinBuf = make(dsp.BinBuf, d.cfg.SampleSize)
 
-		slowMax    = int(d.cfg.Scaling.SlowWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
-		fastMax    = int(d.cfg.Scaling.FastWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
-		windowData = make([]float64, slowMax+fastMax)
-
 		barBufs = d.makeBarBuf()
 		plans   = make([]*fft.Plan, d.channels)
 	)
-
-	var slowWindow = &util.MovingWindow{
-		Data:     windowData[0:slowMax],
-		Capacity: slowMax,
-	}
-
-	var fastWindow = &util.MovingWindow{
-		Data:     windowData[slowMax : slowMax+fastMax],
-		Capacity: fastMax,
-	}
 
 	// DrawDelay is the time we wait between ticks to draw.
 	var drawDelay = time.Second / time.Duration(d.cfg.SampleRate/float64(d.cfg.SampleSize))
@@ -342,7 +328,28 @@ func (d *Drawer) start() error {
 	}
 
 	var barCount int
-	var peak, scale float64
+	var peak float64
+
+	var scale = d.cfg.Scaling.StaticScale
+	var slowWindow, fastWindow *util.MovingWindow
+
+	if scale == 0 {
+		var (
+			slowMax    = int(d.cfg.Scaling.SlowWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
+			fastMax    = int(d.cfg.Scaling.FastWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
+			windowData = make([]float64, slowMax+fastMax)
+		)
+
+		slowWindow = &util.MovingWindow{
+			Data:     windowData[0:slowMax],
+			Capacity: slowMax,
+		}
+
+		fastWindow = &util.MovingWindow{
+			Data:     windowData[slowMax : slowMax+fastMax],
+			Capacity: fastMax,
+		}
+	}
 
 	var timer = time.NewTimer(drawDelay)
 	defer timer.Stop()
@@ -377,7 +384,6 @@ func (d *Drawer) start() error {
 			}
 
 			peak = 0
-			scale = 1.0
 		}
 
 		if barVar := d.bars(); barVar != barCount {
@@ -396,8 +402,11 @@ func (d *Drawer) start() error {
 			}
 		}
 
-		// do some scaling if we are above 0
-		if peak > 0 {
+		// We only need to check for one window to know the other is not nil.
+		if (slowWindow != nil) && peak > 0 {
+			// Set scale to a default 1.
+			scale = 1
+
 			fastWindow.Update(peak)
 			var vMean, vSD = slowWindow.Update(peak)
 

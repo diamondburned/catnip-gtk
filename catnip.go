@@ -31,6 +31,7 @@ type Config struct {
 }
 
 type ScalingConfig struct {
+	StaticScale    float64 // 0 for dynamic scale
 	SlowWindow     float64
 	FastWindow     float64
 	DumpPercent    float64
