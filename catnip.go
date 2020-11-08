@@ -29,6 +29,15 @@ type Config struct {
 	SpectrumType dsp.SpectrumType
 }
 
+// WrapExternalWindowFn wraps external (mostly gonum/dsp/window) functions to be
+// compatible with catnip's usage. The implementation will assume that the given
+// function modifies the given slice in its place, which is the case for most
+// gonum functions, but it might not always be the case. If the implementation
+// does not, then the caller should write their own function to copy.
+func WrapExternalWindowFn(fn func([]float64) []float64) window.Function {
+	return func(buf []float64) { fn(buf) }
+}
+
 // DrawOptions is the option for Cairo draws.
 type DrawOptions struct {
 	LineCap  cairo.LineCap  // default BUTT
