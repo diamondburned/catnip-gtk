@@ -3,8 +3,11 @@ package main
 import (
 	"log"
 	"os"
+	"path/filepath"
 
-	"github.com/diamondburned/catnip-gtk"
+	"github.com/diamondburned/catnip-gtk/cmd/catnip-gtk/internal/config"
+	"github.com/diamondburned/handy"
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 
@@ -14,48 +17,85 @@ import (
 	_ "github.com/noriah/catnip/input/portaudio"
 )
 
-func main() {
+var configPath = filepath.Join(glib.GetUserConfigDir(), "catnip-gtk", "config.json")
+
+func init() {
 	gtk.Init(&os.Args)
+	handy.Init()
 
-	config := catnip.NewConfig()
-	config.SampleRate = 44100
-	config.SampleSize = int(config.SampleRate / 70) // 70fps
-	config.Backend = "parec"                        // use PulseAudio
-	config.BarWidth = 4
-	config.SpaceWidth = 1
-	config.SmoothFactor = 39.29
-	config.Monophonic = true
-	config.ForceEven = true // sharpen
+	if err := os.MkdirAll(filepath.Dir(configPath), os.ModePerm); err != nil {
+		log.Println("failed to make config directory:", err)
+		configPath = ""
+	}
+}
 
-	a := catnip.New(config)
-	a.Show()
+func main() {
+	cfg, err := config.ReadConfig(configPath)
+	if err != nil {
+		log.Println("failed to load config, using default:", err)
+		cfg, err = config.NewConfig()
+	}
+	if err != nil {
+		log.Fatalln("failed to create config:", err)
+	}
 
-	go func() {
-		if err := a.Start(); err != nil {
-			glib.IdleAdd(func() {
-				gtk.MainQuit()
-				log.Fatalln("failed to start catnip:", err)
-			})
-		}
-	}()
+	session := NewSession(cfg)
+	session.Reload()
+	session.Show()
 
-	pause, _ := gtk.ToggleButtonNewWithLabel("Pause")
-	pause.Connect("toggled", func() {
-		a.SetPaused(pause.GetActive())
-	})
-	pause.SetHAlign(gtk.ALIGN_CENTER)
-	pause.Show()
+	evbox, _ := gtk.EventBoxNew()
+	evbox.Add(session)
+	evbox.Show()
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.PackStart(a, true, true, 0)
-	box.PackStart(pause, false, false, 8)
-	box.Show()
-
-	w, _ := gtk.WindowNew(gtk.WINDOW_TOPLEVEL)
+	w := handy.WindowNew()
+	w.Add(evbox)
 	w.SetDefaultSize(1000, 150)
-	w.Add(box)
-	w.Show()
 	w.Connect("destroy", gtk.MainQuit)
+	w.Show()
+
+	wstyle, _ := w.GetStyleContext()
+	wstyle.AddClass("catnip")
+
+	prefMenu, _ := gtk.MenuItemNewWithLabel("Preferences")
+	prefMenu.Show()
+	prefMenu.Connect("activate", func() {
+		cfgw := cfg.PreferencesWindow(session.Reload)
+		cfgw.Connect("destroy", func() { save(cfg) })
+		cfgw.Show()
+	})
+
+	aboutMenu, _ := gtk.MenuItemNewWithLabel("About")
+	aboutMenu.Show()
+	aboutMenu.Connect("activate", func() {
+		about := About()
+		about.SetTransientFor(w)
+		about.Show()
+	})
+
+	quitMenu, _ := gtk.MenuItemNewWithLabel("Quit")
+	quitMenu.Show()
+	quitMenu.Connect("activate", w.Destroy)
+
+	menu, _ := gtk.MenuNew()
+	menu.Append(prefMenu)
+	menu.Append(aboutMenu)
+	menu.Append(quitMenu)
+
+	evbox.Connect("button-press-event", func(evbox *gtk.EventBox, ev *gdk.Event) {
+		if b := gdk.EventButtonNewFromEvent(ev); b.Button() == gdk.BUTTON_SECONDARY {
+			menu.PopupAtPointer(ev)
+		}
+	})
 
 	gtk.Main()
+}
+
+func save(cfg *config.Config) {
+	if configPath == "" {
+		return
+	}
+
+	if err := cfg.Save(configPath); err != nil {
+		log.Println("failed to save config:", err)
+	}
 }

@@ -2,6 +2,7 @@ package catnip
 
 import (
 	"image/color"
+	"math"
 
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
@@ -58,6 +59,13 @@ func (opts DrawOptions) even(n int) int {
 		return n
 	}
 	return n - (n % 2)
+}
+
+func (opts DrawOptions) round(f float64) float64 {
+	if !opts.ForceEven {
+		return f
+	}
+	return math.Round(f)
 }
 
 // DrawOffsets controls the offset for the Drawer.

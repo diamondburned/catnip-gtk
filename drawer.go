@@ -18,7 +18,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-type cairoColor [4]float64
+type CairoColor [4]float64
+
+func ColorFromGDK(rgba gdk.RGBA) CairoColor {
+	var cairoC CairoColor
+	copy(cairoC[:], rgba.Floats())
+	return cairoC
+}
+
+func (cc CairoColor) RGBA() (r, g, b, a uint32) {
+	r = uint32(cc[0] * 0xFFFF)
+	g = uint32(cc[1] * 0xFFFF)
+	b = uint32(cc[2] * 0xFFFF)
+	a = uint32(cc[3] * 0xFFFF)
+	return
+}
 
 // DrawQueuer is a custom widget interface that allows draw queueing.
 type DrawQueuer interface {
@@ -36,10 +50,11 @@ type Drawer struct {
 	cancel context.CancelFunc
 
 	backend input.Backend
+	device  input.Device
 	session input.Session
 
-	fg cairoColor
-	bg cairoColor
+	fg CairoColor
+	bg CairoColor
 
 	// total bar + space width
 	binWidth float64
@@ -62,8 +77,8 @@ func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
 		ctx:    ctx,
 		cancel: cancel,
 
-		fg: getColor(cfg.Colors.Foreground, nil, cairoColor{0, 0, 0, 1}),
-		bg: getColor(cfg.Colors.Background, nil, cairoColor{0, 0, 0, 0}),
+		fg: getColor(cfg.Colors.Foreground, nil, CairoColor{0, 0, 0, 1}),
+		bg: getColor(cfg.Colors.Background, nil, CairoColor{0, 0, 0, 0}),
 
 		channels: 2,
 		// Weird Cairo tricks require multiplication and division by 2. Unsure
@@ -83,8 +98,15 @@ func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
 
 // getColor gets the color from the given c Color interface. If c is nil, then
 // the color is taken from the given gdk.RGBA instead.
-func getColor(c color.Color, rgba *gdk.RGBA, fallback cairoColor) (cairoC cairoColor) {
+func getColor(c color.Color, rgba *gdk.RGBA, fallback CairoColor) (cairoC CairoColor) {
 	if c != nil {
+		switch c := c.(type) {
+		case CairoColor:
+			return c
+		case *CairoColor:
+			return *c
+		}
+
 		r, g, b, a := c.RGBA()
 
 		cairoC[0] = float64(r) / 0xFFFF
@@ -108,7 +130,8 @@ type StyleContexter interface {
 	GetStyleContext() (*gtk.StyleContext, error)
 }
 
-// SetWidgetStyle lets the Drawer take the given widgetStyler's styles.
+// SetWidgetStyle lets the Drawer take the given widgetStyler's styles. It
+// doesn't set colors that weren't nil in the config.
 func (d *Drawer) SetWidgetStyle(widgetStyler StyleContexter) {
 	styleCtx, _ := widgetStyler.GetStyleContext()
 
@@ -133,6 +156,8 @@ func (d *Drawer) ConnectDraw(c Connector) (glib.SignalHandle, error) {
 // ConnectSizeAllocate connects the given connector to update the width of the
 // drawer, and consequently, the number of bars drawn.
 func (d *Drawer) ConnectSizeAllocate(c Connector) (glib.SignalHandle, error) {
+	d.drawState.SetWidth(c.GetAllocatedWidth())
+
 	return c.Connect("size-allocate", func() {
 		d.drawState.SetWidth(c.GetAllocatedWidth())
 	})
@@ -219,8 +244,8 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 			// Don't draw if stop is NaN for some reason.
 			if !math.IsNaN(stop) {
 				cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
-				cr.MoveTo(d.cfg.Offsets.apply(xCol, height-stop))
-				cr.LineTo(d.cfg.Offsets.apply(xCol, height))
+				cr.MoveTo(d.cfg.Offsets.apply(xCol, d.cfg.round(height-stop)))
+				cr.LineTo(d.cfg.Offsets.apply(xCol, d.cfg.round(height)))
 				cr.Stroke()
 				cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
 			}
@@ -241,6 +266,16 @@ func calculateBar(value, height, clamp float64) float64 {
 	return bar
 }
 
+// SetBackend overrides the given Backend in the config.
+func (d *Drawer) SetBackend(backend input.Backend) {
+	d.backend = backend
+}
+
+// SetDevice overrides the given Device in the config.
+func (d *Drawer) SetDevice(device input.Device) {
+	d.device = device
+}
+
 // Stop signals the event loop to stop. It does not block.
 func (d *Drawer) Stop() {
 	d.cancel()
@@ -258,27 +293,31 @@ func (d *Drawer) Start() error {
 		panic("BUG: catnip.Area is already started.")
 	}
 
-	backend, err := initBackend(d.cfg)
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize input backend")
+	if d.backend == nil {
+		backend, err := initBackend(d.cfg)
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize input backend")
+		}
+
+		d.backend = backend
 	}
 
-	d.backend = backend
 	defer d.backend.Close()
 
-	device, err := getDevice(backend, d.cfg)
-	if err != nil {
-		return err
+	if d.device == nil {
+		device, err := getDevice(d.backend, d.cfg)
+		if err != nil {
+			return err
+		}
+		d.device = device
 	}
 
-	var sessConfig = input.SessionConfig{
-		Device:     device,
+	session, err := d.backend.Start(input.SessionConfig{
+		Device:     d.device,
 		FrameSize:  d.channels,
 		SampleSize: d.cfg.SampleSize,
 		SampleRate: d.cfg.SampleRate,
-	}
-
-	session, err := backend.Start(sessConfig)
+	})
 	if err != nil {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
@@ -357,16 +396,12 @@ func (d *Drawer) start() error {
 	defer d.drawState.Invalidate()
 
 	// Periodically queue redraw.
-	glib.TimeoutAdd(uint(drawDelay/time.Millisecond), func() bool {
+	ms := uint(drawDelay / time.Millisecond)
+	timerHandle, _ := glib.TimeoutAdd(ms, func() bool {
 		d.drawQ.QueueDraw()
-
-		select {
-		case <-d.ctx.Done():
-			return false
-		default:
-			return true
-		}
+		return true
 	})
+	defer glib.SourceRemove(timerHandle)
 
 	for {
 		if atomic.LoadUint32(&d.paused) == 1 {
