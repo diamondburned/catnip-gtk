@@ -182,8 +182,7 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 	var rgba *gdk.RGBA
 	if colorValue := *optc; colorValue != nil {
 		cacc := *colorValue
-		rgba = new(gdk.RGBA)
-		rgba.SetColors(cacc[0], cacc[1], cacc[2], cacc[3])
+		rgba = gdk.NewRGBA(cacc[0], cacc[1], cacc[2], cacc[3])
 	}
 
 	if rgba != nil {
@@ -195,6 +194,7 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 	reset, _ := gtk.ButtonNewFromIconName("edit-undo-symbolic", gtk.ICON_SIZE_BUTTON)
 	reset.SetRelief(gtk.RELIEF_NONE)
 	reset.SetVAlign(gtk.ALIGN_CENTER)
+	reset.SetTooltipText("Revert")
 	reset.Show()
 	reset.Connect("clicked", func() {
 		*optc = nil
