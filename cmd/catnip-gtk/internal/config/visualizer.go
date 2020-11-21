@@ -13,21 +13,37 @@ import (
 )
 
 type Visualizer struct {
+	SampleRate float64
+	FrameRate  float64
+
 	WindowFn     WindowFn
-	SampleRate   float64
-	SampleSize   int
 	SmoothFactor float64
 	Distribution Distribution
+
+	ScaleSlowWindow     float64
+	ScaleFastWindow     float64
+	ScaleDumpPercent    float64
+	ScaleResetDeviation float64
 }
 
 func NewVisualizer() Visualizer {
 	return Visualizer{
-		WindowFn:     BlackmanHarris,
-		SampleRate:   48000,
-		SampleSize:   48000 / 60, // 60fps
+		SampleRate: 48000,
+		FrameRate:  60,
+
 		SmoothFactor: 65.69,
+		WindowFn:     BlackmanHarris,
 		Distribution: DistributeLog,
+
+		ScaleSlowWindow:     5,
+		ScaleFastWindow:     4,
+		ScaleDumpPercent:    0.75,
+		ScaleResetDeviation: 1.0,
 	}
+}
+
+func (v Visualizer) SampleSize() int {
+	return int(math.Round(v.SampleRate / v.FrameRate))
 }
 
 func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
@@ -51,10 +67,10 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	frameRateSpin, _ := gtk.SpinButtonNewWithRange(5, 240, 5)
 	frameRateSpin.SetVAlign(gtk.ALIGN_CENTER)
 	frameRateSpin.SetProperty("digits", 0)
-	frameRateSpin.SetValue(calcFrameRate(v.SampleRate, v.SampleSize))
+	frameRateSpin.SetValue(v.FrameRate)
 	frameRateSpin.Show()
 	frameRateSpin.Connect("value-changed", func() {
-		v.SampleSize = calcSampleSize(v.SampleRate, frameRateSpin.GetValue())
+		v.FrameRate = frameRateSpin.GetValue()
 		apply()
 	})
 
@@ -139,14 +155,6 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	page.Add(signalProcGroup)
 
 	return page
-}
-
-func calcFrameRate(rate float64, sampleSz int) float64 {
-	return rate / float64(sampleSz)
-}
-
-func calcSampleSize(rate, fps float64) int {
-	return int(math.Round(rate / fps))
 }
 
 type Distribution string

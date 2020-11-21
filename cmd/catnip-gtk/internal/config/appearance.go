@@ -17,10 +17,21 @@ type Appearance struct {
 	BarWidth     float64
 	SpaceWidth   float64 // gap width
 	MinimumClamp float64
-
-	DualChannel bool // .Monophonic
+	DualChannel  bool // .Monophonic
+	Symmetry     catnip.Symmetry
 
 	CustomCSS string
+}
+
+func symmetryString(s catnip.Symmetry) string {
+	switch s {
+	case catnip.Vertical:
+		return "Vertical"
+	case catnip.Horizontal:
+		return "Horizontal"
+	default:
+		return ""
+	}
 }
 
 func NewAppearance() Appearance {
@@ -84,6 +95,22 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	spaceRow.SetSubtitle("The width of the gaps between bars in arbitrary unit.")
 	spaceRow.Show()
 
+	clampSpin, _ := gtk.SpinButtonNewWithRange(0, 25, 1)
+	clampSpin.SetVAlign(gtk.ALIGN_CENTER)
+	clampSpin.SetValue(ac.MinimumClamp)
+	clampSpin.Show()
+	clampSpin.Connect("value-changed", func() {
+		ac.MinimumClamp = clampSpin.GetValue()
+		apply()
+	})
+
+	clampRow := handy.ActionRowNew()
+	clampRow.Add(clampSpin)
+	clampRow.SetActivatableWidget(clampSpin)
+	clampRow.SetTitle("Clamp Height")
+	clampRow.SetSubtitle("The height at which the bar should be clamped to 0.")
+	clampRow.Show()
+
 	dualCh, _ := gtk.SwitchNew()
 	dualCh.SetVAlign(gtk.ALIGN_CENTER)
 	dualCh.SetActive(ac.DualChannel)
@@ -100,12 +127,32 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	dualChRow.SetSubtitle("If enabled, will draw two channels mirrored instead of one.")
 	dualChRow.Show()
 
+	symmCombo, _ := gtk.ComboBoxTextNew()
+	symmCombo.SetVAlign(gtk.ALIGN_CENTER)
+	symmCombo.AppendText(symmetryString(catnip.Vertical))
+	symmCombo.AppendText(symmetryString(catnip.Horizontal))
+	symmCombo.SetActive(int(ac.Symmetry))
+	symmCombo.Show()
+	symmCombo.Connect("changed", func() {
+		ac.Symmetry = catnip.Symmetry(symmCombo.GetActive())
+		apply()
+	})
+
+	symmRow := handy.ActionRowNew()
+	symmRow.Add(symmCombo)
+	symmRow.SetActivatableWidget(symmCombo)
+	symmRow.SetTitle("Symmetry")
+	symmRow.SetSubtitle("Whether to mirror bars vertically or horizontally.")
+	symmRow.Show()
+
 	barGroup := handy.PreferencesGroupNew()
 	barGroup.SetTitle("Bars")
 	barGroup.Add(lineCapRow)
 	barGroup.Add(barRow)
 	barGroup.Add(spaceRow)
+	barGroup.Add(clampRow)
 	barGroup.Add(dualChRow)
+	barGroup.Add(symmRow)
 	barGroup.Show()
 
 	fgRow := newColorRow(&ac.ForegroundColor, true, apply)

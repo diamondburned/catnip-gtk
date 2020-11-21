@@ -76,10 +76,11 @@ func (s *Session) Reload() {
 	catnipCfg := catnip.Config{
 		WindowFn:     s.config.Visualizer.WindowFn.AsFunction(),
 		SampleRate:   s.config.Visualizer.SampleRate,
-		SampleSize:   s.config.Visualizer.SampleSize,
+		SampleSize:   s.config.Visualizer.SampleSize(),
 		SmoothFactor: s.config.Visualizer.SmoothFactor,
 		Monophonic:   !s.config.Appearance.DualChannel,
 		MinimumClamp: s.config.Appearance.MinimumClamp,
+		Symmetry:     s.config.Appearance.Symmetry,
 		SpectrumType: s.config.Visualizer.Distribution.AsSpectrumType(),
 		DrawOptions: catnip.DrawOptions{
 			LineCap:    s.config.Appearance.LineCap.AsLineCap(),
@@ -90,7 +91,7 @@ func (s *Session) Reload() {
 		},
 		Scaling: catnip.ScalingConfig{
 			SlowWindow:     5,
-			FastWindow:     5 * 0.2,
+			FastWindow:     4,
 			DumpPercent:    0.75,
 			ResetDeviation: 1.0,
 		},
@@ -116,11 +117,10 @@ func (s *Session) Reload() {
 
 	drawID, _ := drawer.ConnectDraw(s.Area)
 	stopID, _ := drawer.ConnectDestroy(s.Area)
-	areaID, _ := drawer.ConnectSizeAllocate(s.Area)
 
 	s.Stack.SetVisibleChild(s.Area)
 	s.Drawer = drawer
-	s.handlers = []glib.SignalHandle{drawID, stopID, areaID}
+	s.handlers = []glib.SignalHandle{drawID, stopID}
 
 	go func() {
 		if err := drawer.Start(); err != nil {

@@ -23,12 +23,22 @@ type Config struct {
 	Scaling      ScalingConfig
 	SampleRate   float64
 	SmoothFactor float64
-	WinVar       float64
 	SampleSize   int
+	Symmetry     Symmetry
 	Monophonic   bool
 	MinimumClamp float64 // height before visible
 	SpectrumType dsp.SpectrumType
 }
+
+// Symmetry is the style to draw the bars symmetrically.
+type Symmetry uint8
+
+const (
+	// Vertical is drawing the bars vertically mirrored if stereo.
+	Vertical Symmetry = iota
+	// Horizontal is drawing the bars horizontally mirrored if stereo.
+	Horizontal
+)
 
 // WrapExternalWindowFn wraps external (mostly gonum/dsp/window) functions to be
 // compatible with catnip's usage. The implementation will assume that the given
@@ -138,7 +148,6 @@ func New(cfg Config) *Area {
 	drawer.SetWidgetStyle(draw)
 	drawer.ConnectDraw(draw)
 	drawer.ConnectDestroy(draw)
-	drawer.ConnectSizeAllocate(draw)
 
 	return &Area{
 		Drawer:      drawer,
