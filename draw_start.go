@@ -2,7 +2,6 @@ package catnip
 
 import (
 	"math"
-	"sync/atomic"
 	"time"
 
 	"github.com/gotk3/gotk3/glib"
@@ -28,9 +27,7 @@ func (d *Drawer) Start() error {
 	var (
 		fftBuf   = make([]complex128, d.cfg.SampleSize/2+1)
 		spBinBuf = make(dsp.BinBuf, d.cfg.SampleSize)
-
-		barBufs = d.makeBarBuf()
-		plans   = make([]*fft.Plan, d.channels)
+		plans    = make([]*fft.Plan, d.channels)
 	)
 
 	// DrawDelay is the time we wait between ticks to draw.
@@ -45,9 +42,6 @@ func (d *Drawer) Start() error {
 
 	d.spectrum.SetSmoothing(d.cfg.SmoothFactor / 100)
 	d.spectrum.SetType(d.cfg.SpectrumType)
-
-	var barCount = d.setForBarCount(barBufs, 1)
-	defer d.invalidateShared()
 
 	// Recreate
 
@@ -97,11 +91,10 @@ func (d *Drawer) Start() error {
 	}
 
 	var peak float64
-
-	var scale = d.cfg.Scaling.StaticScale
 	var slowWindow, fastWindow *util.MovingWindow
 
-	if scale == 0 {
+	d.scale = d.cfg.Scaling.StaticScale
+	if d.scale == 0 {
 		var (
 			slowMax    = int(d.cfg.Scaling.SlowWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
 			fastMax    = int(d.cfg.Scaling.FastWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
@@ -119,41 +112,33 @@ func (d *Drawer) Start() error {
 		}
 	}
 
-	var timer = time.NewTimer(drawDelay)
-	defer timer.Stop()
+	var errCh = make(chan error, 1)
 
 	// Periodically queue redraw.
 	ms := uint(drawDelay / time.Millisecond)
 	timerHandle, _ := glib.TimeoutAdd(ms, func() bool {
-		d.drawQ.QueueDraw()
-		return true
-	})
-	defer glib.SourceRemove(timerHandle)
-
-	for {
-		if atomic.LoadUint32(&d.paused) == 1 {
+		if d.paused {
 			writeZeroBuf(inputBufs)
-
-			// don't reset the numbers.
 
 		} else {
 			if d.session.ReadyRead() < d.cfg.SampleSize {
-				continue
+				return true
 			}
 
 			if err := d.session.Read(d.ctx); err != nil {
-				return errors.Wrap(err, "failed to read audio input")
+				errCh <- errors.Wrap(err, "failed to read audio input")
+				return false
 			}
 
 			peak = 0
 		}
 
-		for idx, buf := range barBufs {
+		for idx, buf := range d.barBufs {
 			d.cfg.WindowFn(inputBufs[idx])
 			plans[idx].Execute()
 			d.spectrum.Process(buf, fftBuf)
 
-			for _, v := range buf[:barCount] {
+			for _, v := range buf[:d.barCount] {
 				if peak < v {
 					peak = v
 				}
@@ -161,9 +146,9 @@ func (d *Drawer) Start() error {
 		}
 
 		// We only need to check for one window to know the other is not nil.
-		if (slowWindow != nil) && peak > 0 {
+		if slowWindow != nil && peak > 0 {
 			// Set scale to a default 1.
-			scale = 1
+			d.scale = 1
 
 			fastWindow.Update(peak)
 			var vMean, vSD = slowWindow.Update(peak)
@@ -175,19 +160,23 @@ func (d *Drawer) Start() error {
 			}
 
 			if t := vMean + (1.5 * vSD); t > 1.0 {
-				scale = t
+				d.scale = t
 			}
 		}
 
 		// Update barCount after to reuse the mutex cheaply.
-		barCount = d.setForBarCount(barBufs, scale)
+		d.drawQ.QueueDraw()
 
-		select {
-		case <-d.ctx.Done():
-			return nil
-		case <-timer.C:
-			timer.Reset(drawDelay)
-		}
+		return true
+	})
+
+	defer glib.SourceRemove(timerHandle)
+
+	select {
+	case <-d.ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
 	}
 }
 

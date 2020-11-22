@@ -8,7 +8,7 @@ import (
 
 func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 	var (
-		bins = d.shareBufs
+		bins = d.barBufs
 
 		center     = (height - d.cfg.MinimumClamp) / 2
 		scale      = center / d.scale

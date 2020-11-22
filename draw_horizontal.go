@@ -23,7 +23,7 @@ func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
 		delta = 1
 	)
 
-	for _, chBins := range d.shareBufs {
+	for _, chBins := range d.barBufs {
 		var (
 			stop    = calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
 			lCol    = xCol + d.cfg.BarWidth

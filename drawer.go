@@ -4,8 +4,6 @@ import (
 	"context"
 	"image/color"
 	"math"
-	"sync"
-	"sync/atomic"
 
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
@@ -59,13 +57,12 @@ type Drawer struct {
 	// channels; 1 if monophonic
 	channels int
 
-	paused uint32
+	paused bool
 
-	shareMu   sync.Mutex
-	shareBufs [][]float64
-	oldWidth  float64
-	barCount  int
-	scale     float64
+	barBufs  [][]float64
+	oldWidth float64
+	barCount int
+	scale    float64
 }
 
 // NewDrawer creates a separated drawer state. The given drawQueuer will be
@@ -92,8 +89,8 @@ func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
 		drawer.channels = 1
 	}
 
-	// Allocate a second bar buffer for copying.
-	drawer.shareBufs = drawer.makeBarBuf()
+	// Allocate a bar buffer.
+	drawer.barBufs = drawer.makeBarBuf()
 
 	return drawer
 }
@@ -163,33 +160,7 @@ func (d *Drawer) ConnectDestroy(c Connector) (glib.SignalHandle, error) {
 
 // SetPaused will silent all inputs if true.
 func (d *Drawer) SetPaused(paused bool) {
-	if paused {
-		atomic.StoreUint32(&d.paused, 1)
-	} else {
-		atomic.StoreUint32(&d.paused, 0)
-	}
-}
-
-func (d *Drawer) setForBarCount(buf [][]float64, scale float64) (barCount int) {
-	d.shareMu.Lock()
-	defer d.shareMu.Unlock()
-
-	d.scale = scale
-
-	for i := range buf {
-		copy(d.shareBufs[i][:d.barCount], buf[i][:d.barCount])
-	}
-
-	return d.barCount
-}
-
-func (d *Drawer) invalidateShared() {
-	d.shareMu.Lock()
-	defer d.shareMu.Unlock()
-
-	d.shareBufs = nil
-	d.barCount = 0
-	d.scale = 0
+	d.paused = paused
 }
 
 // AllocatedSizeGetter is any widget that can be obtained dimensions of. This is
@@ -210,10 +181,6 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 	cr.SetLineWidth(d.cfg.BarWidth / 2)
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
-
-	// TODO: maybe reduce lock contention somehow.
-	d.shareMu.Lock()
-	defer d.shareMu.Unlock()
 
 	if width != d.oldWidth {
 		d.barCount = d.spectrum.Recalculate(d.bars(width))
