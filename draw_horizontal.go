@@ -49,8 +49,6 @@ func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
 			// Don't draw if stop is NaN for some reason.
 			if !math.IsNaN(stop) {
 				d.drawBar(cr, xCol, height, stop)
-			} else {
-				d.drawBar(cr, xCol, height, d.cfg.MinimumClamp)
 			}
 
 			xCol++
