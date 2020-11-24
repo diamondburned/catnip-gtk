@@ -72,6 +72,20 @@ func (s Session) Stop() {
 	}
 }
 
+func (s *Session) verifyHandlers(handlers ...glib.SignalHandle) bool {
+	if len(handlers) != len(s.handlers) {
+		return false
+	}
+
+	for i, h := range handlers {
+		if h != s.handlers[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (s *Session) Reload() {
 	catnipCfg := catnip.Config{
 		WindowFn:     s.config.Visualizer.WindowFn.AsFunction(),
@@ -126,8 +140,11 @@ func (s *Session) Reload() {
 		if err := drawer.Start(); err != nil {
 			log.Println("Error starting Drawer:", err)
 			glib.IdleAdd(func() {
-				s.Error.SetMarkup(errorText(err))
-				s.Stack.SetVisibleChild(s.Error)
+				// Ensure this drawer is still being displayed.
+				if s.verifyHandlers(drawID, stopID) {
+					s.Error.SetMarkup(errorText(err))
+					s.Stack.SetVisibleChild(s.Error)
+				}
 			})
 		}
 	}()
