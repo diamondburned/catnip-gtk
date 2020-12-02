@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/diamondburned/catnip-gtk"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/cairo"
@@ -17,8 +19,10 @@ type Appearance struct {
 	BarWidth     float64
 	SpaceWidth   float64 // gap width
 	MinimumClamp float64
-	DualChannel  bool // .Monophonic
-	Symmetry     catnip.Symmetry
+	AntiAlias    AntiAlias
+
+	DualChannel bool // .Monophonic
+	Symmetry    catnip.Symmetry
 
 	CustomCSS string
 }
@@ -40,6 +44,7 @@ func NewAppearance() Appearance {
 		BarWidth:     4,
 		SpaceWidth:   1,
 		MinimumClamp: 1,
+		AntiAlias:    AntiAliasGood,
 		DualChannel:  true,
 	}
 }
@@ -47,8 +52,7 @@ func NewAppearance() Appearance {
 func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	lineCapCombo, _ := gtk.ComboBoxTextNew()
 	lineCapCombo.SetVAlign(gtk.ALIGN_CENTER)
-	lineCapCombo.Append(string(CapButt), string(CapButt))
-	lineCapCombo.Append(string(CapRound), string(CapRound))
+	addCombo(lineCapCombo, CapButt, CapRound)
 	lineCapCombo.SetActiveID(string(ac.LineCap))
 	lineCapCombo.Show()
 	lineCapCombo.Connect("changed", func() {
@@ -65,6 +69,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 
 	barSpin, _ := gtk.SpinButtonNewWithRange(1, 100, 1)
 	barSpin.SetVAlign(gtk.ALIGN_CENTER)
+	barSpin.SetProperty("digits", 1)
 	barSpin.SetValue(ac.BarWidth)
 	barSpin.Show()
 	barSpin.Connect("value-changed", func() {
@@ -79,8 +84,9 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	barRow.SetSubtitle("The thickness of the bar in arbitrary unit.")
 	barRow.Show()
 
-	spaceSpin, _ := gtk.SpinButtonNewWithRange(1, 100, 1)
+	spaceSpin, _ := gtk.SpinButtonNewWithRange(0, 100, 1)
 	spaceSpin.SetVAlign(gtk.ALIGN_CENTER)
+	spaceSpin.SetProperty("digits", 1)
 	spaceSpin.SetValue(ac.SpaceWidth)
 	spaceSpin.Show()
 	spaceSpin.Connect("value-changed", func() {
@@ -110,6 +116,31 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	clampRow.SetTitle("Clamp Height")
 	clampRow.SetSubtitle("The height at which the bar should be clamped to 0.")
 	clampRow.Show()
+
+	aaCombo, _ := gtk.ComboBoxTextNew()
+	aaCombo.SetVAlign(gtk.ALIGN_CENTER)
+	addCombo(
+		aaCombo,
+		AntiAliasNone,
+		AntiAliasGrey,
+		AntiAliasSubpixel,
+		AntiAliasFast,
+		AntiAliasGood,
+		AntiAliasBest,
+	)
+	aaCombo.SetActiveID(string(ac.AntiAlias))
+	aaCombo.Show()
+	aaCombo.Connect("changed", func() {
+		ac.AntiAlias = AntiAlias(aaCombo.GetActiveID())
+		apply()
+	})
+
+	aaRow := handy.ActionRowNew()
+	aaRow.Add(aaCombo)
+	aaRow.SetActivatableWidget(aaCombo)
+	aaRow.SetTitle("Anti-Aliasing")
+	aaRow.SetSubtitle("The anti-alias mode to draw with.")
+	aaRow.Show()
 
 	dualCh, _ := gtk.SwitchNew()
 	dualCh.SetVAlign(gtk.ALIGN_CENTER)
@@ -151,6 +182,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	barGroup.Add(barRow)
 	barGroup.Add(spaceRow)
 	barGroup.Add(clampRow)
+	barGroup.Add(aaRow)
 	barGroup.Add(dualChRow)
 	barGroup.Add(symmRow)
 	barGroup.Show()
@@ -205,6 +237,13 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	page.Add(cssGroup)
 
 	return page
+}
+
+func addCombo(c *gtk.ComboBoxText, vs ...interface{}) {
+	for _, v := range vs {
+		s := fmt.Sprint(v)
+		c.Append(s, s)
+	}
 }
 
 func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
@@ -274,5 +313,35 @@ func (lc LineCap) AsLineCap() cairo.LineCap {
 		return cairo.LINE_CAP_ROUND
 	default:
 		return CapButt.AsLineCap()
+	}
+}
+
+type AntiAlias string
+
+const (
+	AntiAliasNone     AntiAlias = "None"
+	AntiAliasGrey     AntiAlias = "Grey"
+	AntiAliasSubpixel AntiAlias = "Subpixel"
+	AntiAliasFast     AntiAlias = "Fast"
+	AntiAliasGood     AntiAlias = "Good"
+	AntiAliasBest     AntiAlias = "Best"
+)
+
+func (aa AntiAlias) AsAntialias() cairo.Antialias {
+	switch aa {
+	case AntiAliasNone:
+		return cairo.ANTIALIAS_NONE
+	case AntiAliasGrey:
+		return cairo.ANTIALIAS_GRAY
+	case AntiAliasSubpixel:
+		return cairo.ANTIALIAS_SUBPIXEL
+	case AntiAliasFast:
+		return cairo.ANTIALIAS_FAST
+	case AntiAliasGood:
+		return cairo.ANTIALIAS_GOOD
+	case AntiAliasBest:
+		return cairo.ANTIALIAS_BEST
+	default:
+		return cairo.ANTIALIAS_GOOD
 	}
 }

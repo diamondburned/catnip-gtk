@@ -101,7 +101,8 @@ func (s *Session) Reload() {
 			LineJoin:   cairo.LINE_JOIN_MITER,
 			BarWidth:   s.config.Appearance.BarWidth,
 			SpaceWidth: s.config.Appearance.SpaceWidth,
-			ForceEven:  true,
+			AntiAlias:  s.config.Appearance.AntiAlias.AsAntialias(),
+			ForceEven:  false,
 		},
 		Scaling: catnip.ScalingConfig{
 			SlowWindow:     5,

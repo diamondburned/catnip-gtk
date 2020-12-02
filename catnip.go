@@ -51,8 +51,9 @@ func WrapExternalWindowFn(fn func([]float64) []float64) window.Function {
 
 // DrawOptions is the option for Cairo draws.
 type DrawOptions struct {
-	LineCap  cairo.LineCap  // default BUTT
-	LineJoin cairo.LineJoin // default MITER
+	LineCap   cairo.LineCap  // default BUTT
+	LineJoin  cairo.LineJoin // default MITER
+	AntiAlias cairo.Antialias
 
 	Colors     Colors
 	Offsets    DrawOffsets
@@ -121,6 +122,7 @@ func NewConfig() Config {
 		DrawOptions: DrawOptions{
 			LineCap:    cairo.LINE_CAP_BUTT,
 			LineJoin:   cairo.LINE_JOIN_MITER,
+			AntiAlias:  cairo.ANTIALIAS_DEFAULT,
 			BarWidth:   10,
 			SpaceWidth: 5,
 		},

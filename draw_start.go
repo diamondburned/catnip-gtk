@@ -116,16 +116,10 @@ func (d *Drawer) Start() error {
 
 	// Periodically queue redraw.
 	ms := uint(drawDelay / time.Millisecond)
-	tk := time.NewTicker(drawDelay)
 
 	timerHandle, _ := glib.TimeoutAdd(ms, func() bool {
-		select {
-		case <-tk.C:
-			// continue
-		default:
-			// Not time yet. Continue.
-			return true
-		}
+		// Always signal a draw in the end.
+		defer d.drawQ.QueueDraw()
 
 		if d.paused {
 			writeZeroBuf(inputBufs)
@@ -174,12 +168,9 @@ func (d *Drawer) Start() error {
 			}
 		}
 
-		d.drawQ.QueueDraw()
-
 		return true
 	})
 
-	defer tk.Stop()
 	defer glib.SourceRemove(timerHandle)
 
 	select {

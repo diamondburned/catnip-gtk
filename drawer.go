@@ -178,6 +178,12 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 		height = float64(d.cfg.even(w.GetAllocatedHeight()))
 	)
 
+	cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
+
+	cr.Save()
+	defer cr.Restore()
+
+	cr.SetAntialias(d.cfg.AntiAlias)
 	cr.SetLineWidth(d.cfg.BarWidth / 2)
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
@@ -186,6 +192,8 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 		d.barCount = d.spectrum.Recalculate(d.bars(width))
 		d.oldWidth = width
 	}
+
+	cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
 
 	switch d.cfg.Symmetry {
 	case Vertical:
@@ -196,11 +204,9 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 }
 
 func (d *Drawer) drawBar(cr *cairo.Context, xCol, to, from float64) {
-	cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
 	cr.MoveTo(d.cfg.Offsets.apply(xCol, d.cfg.round(from)))
 	cr.LineTo(d.cfg.Offsets.apply(xCol, d.cfg.round(to)))
 	cr.Stroke()
-	cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
 }
 
 func calculateBar(value, height, clamp float64) float64 {
