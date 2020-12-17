@@ -60,7 +60,7 @@ func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 
 		if !math.IsNaN(lStop) && !math.IsNaN(rStop) {
 			d.drawBar(cr, xCol, lStop, height-rStop)
-		} else {
+		} else if d.cfg.MinimumClamp > 0 {
 			d.drawBar(cr, xCol, center, center+d.cfg.MinimumClamp)
 		}
 

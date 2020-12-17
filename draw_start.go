@@ -118,8 +118,6 @@ func (d *Drawer) Start() error {
 	ms := uint(drawDelay / time.Millisecond)
 
 	timerHandle, _ := glib.TimeoutAdd(ms, func() bool {
-		// Always signal a draw in the end.
-		defer d.drawQ.QueueDraw()
 
 		if d.paused {
 			writeZeroBuf(inputBufs)
@@ -166,6 +164,11 @@ func (d *Drawer) Start() error {
 			if t := vMean + (1.5 * vSD); t > 1.0 {
 				d.scale = t
 			}
+		}
+
+		// Only queue draw if we have a peak noticeable enough.
+		if peak > 0.001 {
+			d.drawQ.QueueDraw()
 		}
 
 		return true
