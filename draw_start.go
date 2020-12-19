@@ -118,10 +118,8 @@ func (d *Drawer) Start() error {
 	ms := uint(drawDelay / time.Millisecond)
 
 	timerHandle, _ := glib.TimeoutAdd(ms, func() bool {
-
 		if d.paused {
 			writeZeroBuf(inputBufs)
-
 		} else {
 			if d.session.ReadyRead() < d.cfg.SampleSize {
 				return true
@@ -131,9 +129,9 @@ func (d *Drawer) Start() error {
 				errCh <- errors.Wrap(err, "failed to read audio input")
 				return false
 			}
-
-			peak = 0
 		}
+
+		peak = 0
 
 		for idx, buf := range d.barBufs {
 			d.cfg.WindowFn(inputBufs[idx])
@@ -147,8 +145,9 @@ func (d *Drawer) Start() error {
 			}
 		}
 
-		// We only need to check for one window to know the other is not nil.
-		if slowWindow != nil && peak > 0 {
+		// We only need to check for one window to know the other is not nil. we
+		// should only scale if we're not paused.
+		if slowWindow != nil && !d.paused && peak > 0 {
 			// Set scale to a default 1.
 			d.scale = 1
 
@@ -167,7 +166,7 @@ func (d *Drawer) Start() error {
 		}
 
 		// Only queue draw if we have a peak noticeable enough.
-		if peak > 0.001 {
+		if peak > 0.01 && !d.paused {
 			d.drawQ.QueueDraw()
 		}
 

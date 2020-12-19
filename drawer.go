@@ -173,6 +173,12 @@ type AllocatedSizeGetter interface {
 // Draw is bound to the draw signal. Although Draw won't crash if Drawer is not
 // started yet, the drawn result is undefined.
 func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
+	// now := time.Now()
+	// defer func() {
+	// 	log.Printf(
+	// 		"visualizer took %12dus to draw\n", time.Now().Sub(now).Microseconds())
+	// }()
+
 	var (
 		width  = float64(d.cfg.even(w.GetAllocatedWidth()))
 		height = float64(d.cfg.even(w.GetAllocatedHeight()))
