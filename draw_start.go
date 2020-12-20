@@ -147,7 +147,7 @@ func (d *Drawer) Start() error {
 
 		// We only need to check for one window to know the other is not nil. we
 		// should only scale if we're not paused.
-		if slowWindow != nil && !d.paused && peak > 0 {
+		if slowWindow != nil && peak > 0.01 {
 			// Set scale to a default 1.
 			d.scale = 1
 
