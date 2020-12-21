@@ -17,17 +17,18 @@ type Config struct {
 	// Device is the device name from list-devices
 	Device string
 
-	DrawOptions
-
 	WindowFn     window.Function // default CosSum, a0 = 0.50
 	Scaling      ScalingConfig
 	SampleRate   float64
 	SmoothFactor float64
 	SampleSize   int
-	Symmetry     Symmetry
-	Monophonic   bool
 	MinimumClamp float64 // height before visible
 	SpectrumType dsp.SpectrumType
+
+	DrawOptions
+
+	Monophonic bool
+	Symmetry   Symmetry
 }
 
 // Symmetry is the style to draw the bars symmetrically.

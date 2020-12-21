@@ -8,9 +8,9 @@ import (
 
 func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
 	var (
-		scale        = height / d.scale
+		scale        = height / d.shared.scale
 		spaceWidth   = d.cfg.SpaceWidth * 2
-		cPaddedWidth = (d.binWidth * float64(d.barCount*d.channels)) - spaceWidth
+		cPaddedWidth = (d.binWidth * float64(d.shared.barCount*d.channels)) - spaceWidth
 	)
 
 	if cPaddedWidth > width || cPaddedWidth < 0 {
@@ -23,11 +23,11 @@ func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
 		delta = 1
 	)
 
-	for _, chBins := range d.barBufs {
+	for _, chBins := range d.shared.barBufRead {
 		var (
 			stop    = calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
 			lCol    = xCol + d.cfg.BarWidth
-			lColMax = xCol + (d.binWidth * float64(d.barCount)) - spaceWidth
+			lColMax = xCol + (d.binWidth * float64(d.shared.barCount)) - spaceWidth
 		)
 
 		for {
@@ -36,7 +36,7 @@ func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
 					break
 				}
 
-				if xBin += delta; xBin >= d.barCount || xBin < 0 {
+				if xBin += delta; xBin >= d.shared.barCount || xBin < 0 {
 					break
 				}
 

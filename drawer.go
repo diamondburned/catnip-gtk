@@ -4,13 +4,17 @@ import (
 	"context"
 	"image/color"
 	"math"
+	"sync"
 
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/noriah/catnip/dsp"
+	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
+
+	catniputil "github.com/noriah/catnip/util"
 )
 
 type CairoColor [4]float64
@@ -44,11 +48,6 @@ type Drawer struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	backend  input.Backend
-	device   input.Device
-	session  input.Session
-	spectrum dsp.Spectrum
-
 	fg CairoColor
 	bg CairoColor
 
@@ -57,12 +56,33 @@ type Drawer struct {
 	// channels; 1 if monophonic
 	channels int
 
-	paused bool
+	backend  input.Backend
+	device   input.Device
+	inputCfg input.SessionConfig
+	inputBuf [][]input.Sample
 
-	barBufs  [][]float64
+	fftBuf   []complex128
+	fftPlans []*fft.Plan
+	spectrum dsp.Spectrum
+
+	slowWindow *catniputil.MovingWindow
+	fastWindow *catniputil.MovingWindow
+
 	oldWidth float64
-	barCount int
-	scale    float64
+
+	shared struct {
+		sync.Mutex
+
+		scale float64
+		peak  float64
+
+		// MUTEX SWAP
+		barBufRead  [][]input.Sample
+		barBufWrite [][]input.Sample
+
+		barCount int
+		paused   bool
+	}
 }
 
 // NewDrawer creates a separated drawer state. The given drawQueuer will be
@@ -70,7 +90,7 @@ type Drawer struct {
 func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	drawer := &Drawer{
+	d := &Drawer{
 		drawQ:  drawQ,
 		cfg:    cfg,
 		ctx:    ctx,
@@ -86,13 +106,10 @@ func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
 	}
 
 	if cfg.Monophonic {
-		drawer.channels = 1
+		d.channels = 1
 	}
 
-	// Allocate a bar buffer.
-	drawer.barBufs = drawer.makeBarBuf()
-
-	return drawer
+	return d
 }
 
 // getColor gets the color from the given c Color interface. If c is nil, then
@@ -160,7 +177,9 @@ func (d *Drawer) ConnectDestroy(c Connector) (glib.SignalHandle, error) {
 
 // SetPaused will silent all inputs if true.
 func (d *Drawer) SetPaused(paused bool) {
-	d.paused = paused
+	d.shared.Lock()
+	d.shared.paused = paused
+	d.shared.Unlock()
 }
 
 // AllocatedSizeGetter is any widget that can be obtained dimensions of. This is
@@ -194,9 +213,12 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
 
-	if width != d.oldWidth {
-		d.barCount = d.spectrum.Recalculate(d.bars(width))
+	d.shared.Lock()
+	defer d.shared.Unlock()
+
+	if d.oldWidth != width {
 		d.oldWidth = width
+		d.shared.barCount = d.spectrum.Recalculate(d.bars(width))
 	}
 
 	cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])

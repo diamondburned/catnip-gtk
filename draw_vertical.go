@@ -8,10 +8,10 @@ import (
 
 func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 	var (
-		bins = d.barBufs
+		bins = d.shared.barBufRead
 
 		center     = (height - d.cfg.MinimumClamp) / 2
-		scale      = center / d.scale
+		scale      = center / d.shared.scale
 		spaceWidth = d.cfg.SpaceWidth * 2
 	)
 
@@ -20,7 +20,7 @@ func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 	}
 
 	var (
-		xCol = (width - ((d.binWidth * float64(d.barCount*d.channels)) - spaceWidth)) / 2
+		xCol = (width - ((d.binWidth * float64(d.shared.barCount*d.channels)) - spaceWidth)) / 2
 		xBin = 0
 	)
 
@@ -30,7 +30,7 @@ func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 
 	var (
 		lCol    = xCol + d.cfg.BarWidth
-		lColMax = xCol + (d.binWidth * float64(d.barCount)) - spaceWidth
+		lColMax = xCol + (d.binWidth * float64(d.shared.barCount)) - spaceWidth
 	)
 
 	var (
@@ -47,7 +47,7 @@ func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 				break
 			}
 
-			if xBin++; xBin >= d.barCount || xBin < 0 {
+			if xBin++; xBin >= d.shared.barCount || xBin < 0 {
 				break
 			}
 
