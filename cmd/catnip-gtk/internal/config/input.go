@@ -68,7 +68,7 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 		deviceCombo.SetActive(0)
 		ic.Device = ""
 	}
-	deviceComboCallback, _ := deviceCombo.Connect("changed", func() {
+	deviceComboCallback := deviceCombo.Connect("changed", func(deviceCombo *gtk.ComboBoxText) {
 		ic.current = deviceCombo.GetActive()
 		if ic.current > 0 {
 			ic.Device = ic.devices[ic.Backend][ic.current].String()
@@ -87,7 +87,7 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 		backendCombo.SetActive(0)
 		ic.Backend = input.Backends[0].Name
 	}
-	backendCombo.Connect("changed", func() {
+	backendCombo.Connect("changed", func(backendCombo *gtk.ComboBoxText) {
 		ic.Backend = backendCombo.GetActiveText()
 		ic.Device = ""
 

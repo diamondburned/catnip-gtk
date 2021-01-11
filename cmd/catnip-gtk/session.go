@@ -49,7 +49,7 @@ func NewSession(cfg *config.Config) *Session {
 		css:    css,
 	}
 
-	stack.Connect("realize", func() {
+	stack.Connect("realize", func(stack *gtk.Stack) {
 		screen, _ := stack.GetScreen()
 		gtk.AddProviderForScreen(
 			screen, css,
@@ -130,8 +130,8 @@ func (s *Session) Reload() {
 	drawer.SetBackend(s.config.Input.InputBackend())
 	drawer.SetDevice(s.config.Input.InputDevice())
 
-	drawID, _ := drawer.ConnectDraw(s.Area)
-	stopID, _ := drawer.ConnectDestroy(s.Area)
+	drawID := drawer.ConnectDraw(s.Area)
+	stopID := drawer.ConnectDestroy(s.Area)
 
 	s.Stack.SetVisibleChild(s.Area)
 	s.Drawer = drawer

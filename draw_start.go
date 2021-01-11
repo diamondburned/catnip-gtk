@@ -103,7 +103,7 @@ func (d *Drawer) Start() (err error) {
 
 	// Periodically queue redraw.
 	ms := uint(drawDelay / time.Millisecond)
-	timerHandle, _ := glib.TimeoutAdd(ms, func() bool {
+	timerHandle := glib.TimeoutAddPriority(ms, glib.PRIORITY_DEFAULT, func() bool {
 		d.shared.Lock()
 		defer d.shared.Unlock()
 

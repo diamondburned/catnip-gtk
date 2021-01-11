@@ -52,7 +52,7 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	sampleRateSpin.SetProperty("digits", 0)
 	sampleRateSpin.SetValue(v.SampleRate)
 	sampleRateSpin.Show()
-	sampleRateSpin.Connect("value-changed", func() {
+	sampleRateSpin.Connect("value-changed", func(sampleRateSpin *gtk.SpinButton) {
 		v.SampleRate = sampleRateSpin.GetValue()
 		apply()
 	})
@@ -69,7 +69,7 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	frameRateSpin.SetProperty("digits", 0)
 	frameRateSpin.SetValue(v.FrameRate)
 	frameRateSpin.Show()
-	frameRateSpin.Connect("value-changed", func() {
+	frameRateSpin.Connect("value-changed", func(frameRateSpin *gtk.SpinButton) {
 		v.FrameRate = frameRateSpin.GetValue()
 		apply()
 	})
@@ -94,7 +94,7 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 		windowCombo.Append(string(windowFn), string(windowFn))
 	}
 	windowCombo.SetActiveID(string(v.WindowFn))
-	windowCombo.Connect("changed", func() {
+	windowCombo.Connect("changed", func(windowCombo *gtk.ComboBoxText) {
 		v.WindowFn = WindowFn(windowCombo.GetActiveID())
 		apply()
 	})
@@ -112,7 +112,7 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	distributionCombo.Append(string(DistributeLog), string(DistributeLog))
 	distributionCombo.Append(string(DistributeEqual), string(DistributeEqual))
 	distributionCombo.SetActiveID(string(v.Distribution))
-	distributionCombo.Connect("changed", func() {
+	distributionCombo.Connect("changed", func(distributionCombo *gtk.ComboBoxText) {
 		v.Distribution = Distribution(distributionCombo.GetActiveID())
 		apply()
 	})
@@ -129,7 +129,7 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	smoothFactorSpin.SetProperty("digits", 2)
 	smoothFactorSpin.SetValue(v.SmoothFactor)
 	smoothFactorSpin.Show()
-	smoothFactorSpin.Connect("value-changed", func() {
+	smoothFactorSpin.Connect("value-changed", func(smoothFactorSpin *gtk.SpinButton) {
 		v.SmoothFactor = smoothFactorSpin.GetValue()
 		apply()
 	})

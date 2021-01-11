@@ -50,7 +50,7 @@ func main() {
 	w := handy.WindowNew()
 	w.Add(evbox)
 	w.SetDefaultSize(1000, 150)
-	w.Connect("destroy", gtk.MainQuit)
+	w.Connect("destroy", func(w *handy.Window) { gtk.MainQuit() })
 	w.Show()
 
 	wstyle, _ := w.GetStyleContext()
@@ -58,15 +58,15 @@ func main() {
 
 	prefMenu, _ := gtk.MenuItemNewWithLabel("Preferences")
 	prefMenu.Show()
-	prefMenu.Connect("activate", func() {
+	prefMenu.Connect("activate", func(prefMenu *gtk.MenuItem) {
 		cfgw := cfg.PreferencesWindow(session.Reload)
-		cfgw.Connect("destroy", func() { save(cfg) })
+		cfgw.Connect("destroy", func(*handy.PreferencesWindow) { save(cfg) })
 		cfgw.Show()
 	})
 
 	aboutMenu, _ := gtk.MenuItemNewWithLabel("About")
 	aboutMenu.Show()
-	aboutMenu.Connect("activate", func() {
+	aboutMenu.Connect("activate", func(aboutMenu *gtk.MenuItem) {
 		about := About()
 		about.SetTransientFor(w)
 		about.Show()
@@ -74,7 +74,7 @@ func main() {
 
 	quitMenu, _ := gtk.MenuItemNewWithLabel("Quit")
 	quitMenu.Show()
-	quitMenu.Connect("activate", w.Destroy)
+	quitMenu.Connect("activate", func(*gtk.MenuItem) { w.Destroy() })
 
 	menu, _ := gtk.MenuNew()
 	menu.Append(prefMenu)

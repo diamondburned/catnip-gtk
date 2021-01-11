@@ -159,20 +159,20 @@ func (d *Drawer) SetWidgetStyle(widgetStyler StyleContexter) {
 type Connector interface {
 	gtk.IWidget
 	AllocatedSizeGetter
-	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
+	Connect(string, interface{}) glib.SignalHandle
 }
 
 var _ Connector = (*gtk.Widget)(nil)
 
 // ConnectDraw connects the given connector to the Draw method.
-func (d *Drawer) ConnectDraw(c Connector) (glib.SignalHandle, error) {
+func (d *Drawer) ConnectDraw(c Connector) glib.SignalHandle {
 	return c.Connect("draw", d.Draw)
 }
 
 // ConnectDestroy connects the destroy signal to destroy the drawer as well. If
 // this method is used, then the caller does not need to call Stop().
-func (d *Drawer) ConnectDestroy(c Connector) (glib.SignalHandle, error) {
-	return c.Connect("destroy", d.cancel)
+func (d *Drawer) ConnectDestroy(c Connector) glib.SignalHandle {
+	return c.Connect("destroy", func(c Connector) { d.cancel() })
 }
 
 // SetPaused will silent all inputs if true.

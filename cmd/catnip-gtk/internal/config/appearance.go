@@ -55,7 +55,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	addCombo(lineCapCombo, CapButt, CapRound)
 	lineCapCombo.SetActiveID(string(ac.LineCap))
 	lineCapCombo.Show()
-	lineCapCombo.Connect("changed", func() {
+	lineCapCombo.Connect("changed", func(lineCapCombo *gtk.ComboBoxText) {
 		ac.LineCap = LineCap(lineCapCombo.GetActiveID())
 		apply()
 	})
@@ -72,7 +72,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	barSpin.SetProperty("digits", 1)
 	barSpin.SetValue(ac.BarWidth)
 	barSpin.Show()
-	barSpin.Connect("value-changed", func() {
+	barSpin.Connect("value-changed", func(barSpin *gtk.SpinButton) {
 		ac.BarWidth = barSpin.GetValue()
 		apply()
 	})
@@ -89,7 +89,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	spaceSpin.SetProperty("digits", 1)
 	spaceSpin.SetValue(ac.SpaceWidth)
 	spaceSpin.Show()
-	spaceSpin.Connect("value-changed", func() {
+	spaceSpin.Connect("value-changed", func(spaceSpin *gtk.SpinButton) {
 		ac.SpaceWidth = spaceSpin.GetValue()
 		apply()
 	})
@@ -105,7 +105,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	clampSpin.SetVAlign(gtk.ALIGN_CENTER)
 	clampSpin.SetValue(ac.MinimumClamp)
 	clampSpin.Show()
-	clampSpin.Connect("value-changed", func() {
+	clampSpin.Connect("value-changed", func(clampSpin *gtk.SpinButton) {
 		ac.MinimumClamp = clampSpin.GetValue()
 		apply()
 	})
@@ -130,7 +130,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	)
 	aaCombo.SetActiveID(string(ac.AntiAlias))
 	aaCombo.Show()
-	aaCombo.Connect("changed", func() {
+	aaCombo.Connect("changed", func(aaCombo *gtk.ComboBoxText) {
 		ac.AntiAlias = AntiAlias(aaCombo.GetActiveID())
 		apply()
 	})
@@ -146,7 +146,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	dualCh.SetVAlign(gtk.ALIGN_CENTER)
 	dualCh.SetActive(ac.DualChannel)
 	dualCh.Show()
-	dualCh.Connect("state-set", func(_ *gtk.Switch, state bool) {
+	dualCh.Connect("state-set", func(dualCh *gtk.Switch, state bool) {
 		ac.DualChannel = state
 		apply()
 	})
@@ -164,7 +164,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	symmCombo.AppendText(symmetryString(catnip.Horizontal))
 	symmCombo.SetActive(int(ac.Symmetry))
 	symmCombo.Show()
-	symmCombo.Connect("changed", func() {
+	symmCombo.Connect("changed", func(symmCombo *gtk.ComboBoxText) {
 		ac.Symmetry = catnip.Symmetry(symmCombo.GetActive())
 		apply()
 	})
@@ -211,7 +211,7 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 
 	cssBuf, _ := cssText.GetBuffer()
 	cssBuf.SetText(ac.CustomCSS)
-	cssBuf.Connect("changed", func() {
+	cssBuf.Connect("changed", func(cssBuf *gtk.TextBuffer) {
 		start, end := cssBuf.GetBounds()
 		ac.CustomCSS, _ = cssBuf.GetText(start, end, false)
 		apply()
@@ -251,7 +251,7 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 	color.SetVAlign(gtk.ALIGN_CENTER)
 	color.SetUseAlpha(true)
 	color.Show()
-	color.Connect("color-set", func() {
+	color.Connect("color-set", func(color *gtk.ColorButton) {
 		rgba := color.GetRGBA()
 		cacc := catnip.ColorFromGDK(*rgba)
 
@@ -282,7 +282,7 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 	reset.SetVAlign(gtk.ALIGN_CENTER)
 	reset.SetTooltipText("Revert")
 	reset.Show()
-	reset.Connect("clicked", func() {
+	reset.Connect("clicked", func(reset *gtk.Button) {
 		*optc = nil
 		color.SetRGBA(defaultRGBA)
 		apply()
