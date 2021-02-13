@@ -31,6 +31,8 @@ github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049 h1:cneUvN8TAzI
 github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
 github.com/diamondburned/tavis v0.0.0-20210213035616-7455045cd6b5 h1:HeSSzh+e69ZYLP5oOvi50xidTsODGRHXVYJKjN0pndk=
 github.com/diamondburned/tavis v0.0.0-20210213035616-7455045cd6b5/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
+github.com/diamondburned/tavis v0.0.0-20210213055733-16d05c4ad4e5 h1:qzrXaUVlxTeDqlO1UUFEei/2b1K7kGz7wzipA3muHzI=
+github.com/diamondburned/tavis v0.0.0-20210213055733-16d05c4ad4e5/go.mod h1:PhwRw+u4VahyvQ/4LwTo/oy/04XKO+t4/Cyw1DMIQYU=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0/go.mod h1:E/TSTwGwJL78qG/PmXZO1EjYhfJinVAhrmmHX6Z8B9k=
 github.com/gotk3/gotk3 v0.5.1-0.20201028052159-952547abf55a h1:9O8VeGmNRqh8UPYLfjYc+W3Gu7vSVTo2uEswq4FO9xI=

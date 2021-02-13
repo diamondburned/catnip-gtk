@@ -7,54 +7,31 @@ import (
 )
 
 func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
-	var (
-		scale        = height / d.shared.scale
-		spaceWidth   = d.cfg.SpaceWidth * 2
-		cPaddedWidth = (d.binWidth * float64(d.shared.barCount*d.channels)) - spaceWidth
-	)
+	bins := d.shared.barBufRead
+	scale := height / d.shared.scale
 
-	if cPaddedWidth > width || cPaddedWidth < 0 {
-		cPaddedWidth = width
-	}
+	delta := 1
 
-	var (
-		xCol  = (width - cPaddedWidth) / 2
-		xBin  = 0
-		delta = 1
-	)
+	// Round up the width so we don't draw a partial bar.
+	xColMax := math.Round(width/d.binWidth) * d.binWidth
 
-	for _, chBins := range d.shared.barBufRead {
-		var (
-			stop    = calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
-			lCol    = xCol + d.cfg.BarWidth
-			lColMax = xCol + (d.binWidth * float64(d.shared.barCount)) - spaceWidth
-		)
+	xBin := 0
+	xCol := (d.binWidth)/2 + (width-xColMax)/2
 
-		for {
-			if xCol >= lCol {
-				if xCol >= lColMax {
-					break
-				}
-
-				if xBin += delta; xBin >= d.shared.barCount || xBin < 0 {
-					break
-				}
-
-				stop = calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
-
-				xCol += spaceWidth
-				lCol = xCol + d.cfg.BarWidth
-			}
+	for _, chBins := range bins {
+		for xBin < d.shared.barCount && xBin >= 0 && xCol < xColMax {
+			stop := calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
 
 			// Don't draw if stop is NaN for some reason.
 			if !math.IsNaN(stop) {
 				d.drawBar(cr, xCol, height, stop)
 			}
 
-			xCol++
+			xCol += d.binWidth
+			xBin += delta
 		}
 
-		xCol += spaceWidth
 		delta = -delta
+		xBin += delta // ensure xBin is not out of bounds first.
 	}
 }

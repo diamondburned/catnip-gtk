@@ -209,7 +209,7 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 	defer cr.Restore()
 
 	cr.SetAntialias(d.cfg.AntiAlias)
-	cr.SetLineWidth(d.cfg.BarWidth / 2)
+	cr.SetLineWidth(d.cfg.BarWidth)
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
 

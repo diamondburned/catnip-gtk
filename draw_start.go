@@ -209,5 +209,5 @@ func (d *Drawer) bars(width float64) int {
 		bars /= float64(d.channels)
 	}
 
-	return int(bars)
+	return int(math.Ceil(bars))
 }

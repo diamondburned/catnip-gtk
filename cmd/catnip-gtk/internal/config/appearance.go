@@ -251,7 +251,7 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 	color.SetVAlign(gtk.ALIGN_CENTER)
 	color.SetUseAlpha(true)
 	color.Show()
-	color.Connect("color-set", func(color *gtk.ColorButton) {
+	color.Connect("color-set", func(interface{}) { // hack around lack of marshaler
 		rgba := color.GetRGBA()
 		cacc := catnip.ColorFromGDK(*rgba)
 
@@ -282,6 +282,7 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 	reset.SetVAlign(gtk.ALIGN_CENTER)
 	reset.SetTooltipText("Revert")
 	reset.Show()
+	reset.Connect("destroy", func(reset *gtk.Button) { color.Destroy() }) // prevent leak
 	reset.Connect("clicked", func(reset *gtk.Button) {
 		*optc = nil
 		color.SetRGBA(defaultRGBA)
