@@ -103,12 +103,13 @@ func (d *Drawer) Start() (err error) {
 
 	// Periodically queue redraw.
 	ms := uint(drawDelay / time.Millisecond)
-	timerHandle := glib.TimeoutAddPriority(ms, glib.PRIORITY_DEFAULT, func() bool {
+	timerHandle := glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, func() bool {
 		d.shared.Lock()
+		peaked := d.shared.peak > 0.01
 		defer d.shared.Unlock()
 
 		// Only queue draw if we have a peak noticeable enough.
-		if d.shared.peak > 0.01 {
+		if peaked {
 			d.drawQ.QueueDraw()
 		}
 

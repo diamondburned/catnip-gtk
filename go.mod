@@ -4,7 +4,7 @@ go 1.15
 
 replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20210111000904-1ca828e76b5d
 
-replace github.com/noriah/catnip => github.com/diamondburned/tavis v0.0.0-20201220224209-811c4fa04049
+replace github.com/noriah/catnip => github.com/diamondburned/tavis v0.0.0-20210213035616-7455045cd6b5
 
 require (
 	github.com/diamondburned/handy v0.0.0-20201229063418-ec23c1370374
