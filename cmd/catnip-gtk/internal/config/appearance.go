@@ -21,8 +21,7 @@ type Appearance struct {
 	MinimumClamp float64
 	AntiAlias    AntiAlias
 
-	DualChannel bool // .Monophonic
-	Symmetry    catnip.Symmetry
+	Symmetry catnip.Symmetry
 
 	CustomCSS string
 }
@@ -45,7 +44,6 @@ func NewAppearance() Appearance {
 		SpaceWidth:   1,
 		MinimumClamp: 1,
 		AntiAlias:    AntiAliasGood,
-		DualChannel:  true,
 	}
 }
 
@@ -142,22 +140,6 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	aaRow.SetSubtitle("The anti-alias mode to draw with.")
 	aaRow.Show()
 
-	dualCh, _ := gtk.SwitchNew()
-	dualCh.SetVAlign(gtk.ALIGN_CENTER)
-	dualCh.SetActive(ac.DualChannel)
-	dualCh.Show()
-	dualCh.Connect("state-set", func(dualCh *gtk.Switch, state bool) {
-		ac.DualChannel = state
-		apply()
-	})
-
-	dualChRow := handy.ActionRowNew()
-	dualChRow.Add(dualCh)
-	dualChRow.SetActivatableWidget(dualCh)
-	dualChRow.SetTitle("Dual Channels")
-	dualChRow.SetSubtitle("If enabled, will draw two channels mirrored instead of one.")
-	dualChRow.Show()
-
 	symmCombo, _ := gtk.ComboBoxTextNew()
 	symmCombo.SetVAlign(gtk.ALIGN_CENTER)
 	symmCombo.AppendText(symmetryString(catnip.Vertical))
@@ -183,7 +165,6 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	barGroup.Add(spaceRow)
 	barGroup.Add(clampRow)
 	barGroup.Add(aaRow)
-	barGroup.Add(dualChRow)
 	barGroup.Add(symmRow)
 	barGroup.Show()
 

@@ -1,14 +1,14 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ unstable ? import <unstable> {} }:
 
-pkgs.stdenv.mkDerivation rec {
+unstable.stdenv.mkDerivation rec {
 	name = "catnip-gtk";
 	version = "0.0.1";
 
-	buildInputs = with pkgs; [
+	buildInputs = with unstable; [
 		gnome3.glib gnome3.gtk libhandy fftw portaudio
 	];
 
-	nativeBuildInputs = with pkgs; [
+	nativeBuildInputs = with unstable; [
 		pkgconfig go
 	];
 }

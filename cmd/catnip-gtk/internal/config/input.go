@@ -9,12 +9,12 @@ import (
 )
 
 type Input struct {
-	Backend string
-	Device  string
+	Backend     string
+	Device      string
+	DualChannel bool // .Monophonic
 
 	backends []input.NamedBackend
 	devices  map[string][]input.Device // first is always default
-	current  int
 }
 
 func NewInput() (Input, error) {
@@ -27,6 +27,16 @@ func NewInput() (Input, error) {
 		devices:  make(map[string][]input.Device, len(input.Backends)),
 	}
 
+	ic.Update()
+	ic.Backend = ic.backends[0].Name
+	ic.Device = ic.devices[ic.Backend][0].String()
+	ic.DualChannel = true
+
+	return ic, nil
+}
+
+// Update updates the list of input devices.
+func (ic *Input) Update() {
 	for _, backend := range input.Backends {
 		devices, _ := backend.Devices()
 		defdevc, _ := backend.DefaultDevice()
@@ -45,11 +55,6 @@ func NewInput() (Input, error) {
 
 		ic.devices[backend.Name] = append([]input.Device{defdevc}, devices...)
 	}
-
-	ic.Backend = ic.backends[0].Name
-	ic.Device = ic.devices[ic.Backend][0].String()
-
-	return ic, nil
 }
 
 func (ic *Input) Page(apply func()) *handy.PreferencesPage {
@@ -69,12 +74,10 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 		ic.Device = ""
 	}
 	deviceComboCallback := deviceCombo.Connect("changed", func(deviceCombo *gtk.ComboBoxText) {
-		ic.current = deviceCombo.GetActive()
-		if ic.current > 0 {
-			ic.Device = ic.devices[ic.Backend][ic.current].String()
+		if ix := deviceCombo.GetActive(); ix > 0 {
+			ic.Device = ic.devices[ic.Backend][ix].String()
 		} else {
 			ic.Device = "" // default
-			ic.current = 0
 		}
 
 		apply()
@@ -93,6 +96,9 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 
 		deviceCombo.HandlerBlock(deviceComboCallback)
 		defer deviceCombo.HandlerUnblock(deviceComboCallback)
+
+		// Update the list of devices when we're changing backend.
+		ic.Update()
 
 		deviceCombo.RemoveAll()
 		addDeviceCombo(deviceCombo, ic.devices[ic.Backend])
@@ -115,10 +121,27 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 	deviceRow.SetActivatableWidget(deviceCombo)
 	deviceRow.Show()
 
+	dualCh, _ := gtk.SwitchNew()
+	dualCh.SetVAlign(gtk.ALIGN_CENTER)
+	dualCh.SetActive(ic.DualChannel)
+	dualCh.Show()
+	dualCh.Connect("state-set", func(dualCh *gtk.Switch, state bool) {
+		ic.DualChannel = state
+		apply()
+	})
+
+	dualChRow := handy.ActionRowNew()
+	dualChRow.Add(dualCh)
+	dualChRow.SetActivatableWidget(dualCh)
+	dualChRow.SetTitle("Dual Channels")
+	dualChRow.SetSubtitle("If enabled, will draw two channels mirrored instead of one.")
+	dualChRow.Show()
+
 	group := handy.PreferencesGroupNew()
 	group.SetTitle("Input")
 	group.Add(backendRow)
 	group.Add(deviceRow)
+	group.Add(dualChRow)
 	group.Show()
 
 	page := handy.PreferencesPageNew()
@@ -175,5 +198,5 @@ func (ic *Input) InputBackend() input.Backend {
 }
 
 func (ic *Input) InputDevice() input.Device {
-	return ic.devices[ic.Backend][ic.current]
+	return findDevice(ic.devices[ic.Backend], ic.Device)
 }

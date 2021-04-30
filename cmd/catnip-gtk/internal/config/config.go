@@ -50,6 +50,9 @@ func ReadConfig(path string) (*Config, error) {
 }
 
 func (cfg *Config) PreferencesWindow(apply func()) *handy.PreferencesWindow {
+	// Refresh the input devices.
+	cfg.Input.Update()
+
 	input := cfg.Input.Page(apply)
 	input.Show()
 

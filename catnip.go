@@ -20,8 +20,8 @@ type Config struct {
 	WindowFn     window.Function // default CosSum, a0 = 0.50
 	Scaling      ScalingConfig
 	SampleRate   float64
-	SmoothFactor float64
 	SampleSize   int
+	SmoothFactor float64
 	MinimumClamp float64 // height before visible
 	SpectrumType dsp.SpectrumType
 
@@ -55,6 +55,8 @@ type DrawOptions struct {
 	LineCap   cairo.LineCap  // default BUTT
 	LineJoin  cairo.LineJoin // default MITER
 	AntiAlias cairo.Antialias
+
+	FrameRate int
 
 	Colors     Colors
 	Offsets    DrawOffsets
@@ -114,8 +116,8 @@ func NewConfig() Config {
 		WindowFn: func(buf []float64) { window.CosSum(buf, 0.50) },
 
 		SampleRate:   48000,
+		SampleSize:   48000 / 30, // 30 resample/s
 		SmoothFactor: 65.69,
-		SampleSize:   48000 / 30, // 30fps
 		Monophonic:   false,
 		MinimumClamp: 1,
 		SpectrumType: dsp.TypeDefault,
@@ -124,6 +126,7 @@ func NewConfig() Config {
 			LineCap:    cairo.LINE_CAP_BUTT,
 			LineJoin:   cairo.LINE_JOIN_MITER,
 			AntiAlias:  cairo.ANTIALIAS_DEFAULT,
+			FrameRate:  60, // 60fps
 			BarWidth:   10,
 			SpaceWidth: 5,
 		},

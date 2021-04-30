@@ -2,7 +2,6 @@ package catnip
 
 import (
 	"math"
-	"time"
 
 	"github.com/gotk3/gotk3/glib"
 	"github.com/noriah/catnip/dsp"
@@ -19,7 +18,7 @@ import (
 //
 // The loop will automatically close when the DrawingArea is destroyed.
 func (d *Drawer) Start() (err error) {
-	if d.inputBuf != nil {
+	if d.barBufs != nil {
 		// Panic is reasonable, as calling Start() multiple times (in multiple
 		// goroutines) may cause undefined behaviors.
 		panic("BUG: catnip.Area is already started.")
@@ -33,8 +32,8 @@ func (d *Drawer) Start() (err error) {
 	d.spectrum.SetSmoothing(d.cfg.SmoothFactor / 100)
 	d.spectrum.SetType(d.cfg.SpectrumType)
 
-	d.shared.scale = d.cfg.Scaling.StaticScale
-	if d.shared.scale == 0 {
+	d.scale = d.cfg.Scaling.StaticScale
+	if d.scale == 0 {
 		var (
 			slowMax    = int(d.cfg.Scaling.SlowWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
 			fastMax    = int(d.cfg.Scaling.FastWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
@@ -83,33 +82,27 @@ func (d *Drawer) Start() (err error) {
 	d.device = nil
 	sessionConfig.Device = nil
 
-	d.fftBuf = make([]complex128, d.cfg.SampleSize/2+1)
-	d.fftPlans = make([]*fft.Plan, d.channels)
-
 	// Allocate buffers.
-	d.inputBuf = input.MakeBuffers(sessionConfig)
-	d.shared.barBufRead = d.makeBarBuf()
-	d.shared.barBufWrite = d.makeBarBuf()
+	d.reallocBarBufs()
+	d.reallocFFTBufs()
+	d.shared.readBuf = input.MakeBuffers(sessionConfig)
+	d.shared.writeBuf = input.MakeBuffers(sessionConfig)
 
-	for idx, buf := range d.inputBuf {
+	// Initialize the FFT plans.
+	d.fftPlans = make([]*fft.Plan, d.channels)
+	for idx := range d.fftPlans {
 		d.fftPlans[idx] = &fft.Plan{
-			Input:  buf,
-			Output: d.fftBuf,
+			Input:  d.shared.readBuf[idx],
+			Output: d.fftBufs[idx],
 		}
 	}
 
-	// DrawDelay is the time we wait between ticks to draw.
-	var drawDelay = time.Second / time.Duration(d.cfg.SampleRate/float64(d.cfg.SampleSize))
-
-	// Periodically queue redraw.
-	ms := uint(drawDelay / time.Millisecond)
+	// Periodically queue redraw. Note that this is never a perfect rounding:
+	// inputting 60Hz will trigger a redraw every 16ms, which is 62.5Hz.
+	ms := 1000 / uint(d.cfg.DrawOptions.FrameRate)
 	timerHandle := glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, func() bool {
-		d.shared.Lock()
-		peaked := d.shared.peak > 0.01
-		defer d.shared.Unlock()
-
 		// Only queue draw if we have a peak noticeable enough.
-		if peaked {
+		if d.updateBars() {
 			d.drawQ.QueueDraw()
 		}
 
@@ -118,62 +111,75 @@ func (d *Drawer) Start() (err error) {
 
 	defer glib.SourceRemove(timerHandle)
 
-	// Write to inputBufWrite, and we can copy from write to read (see Process).
-	if err := session.Start(d.ctx, d.inputBuf, d); err != nil {
+	// Write to writeBuf, and we can copy from write to read (see Process).
+	if err := session.Start(d.ctx, d.shared.writeBuf, d); err != nil {
 		return errors.Wrap(err, "failed to start input session")
 	}
 
 	return nil
 }
 
-func (d *Drawer) Process() {
-	d.shared.Lock()
-	paused := d.shared.paused
-	barCount := d.shared.barCount
-	d.shared.Unlock()
-
-	if paused {
-		writeZeroBuf(d.inputBuf)
-	}
-
+// updateBars updates d.barBufs and such and returns true if a redraw is needed.
+func (d *Drawer) updateBars() bool {
 	peak := 0.0
-	scale := 1.0
 
-	for idx, buf := range d.shared.barBufWrite {
-		d.cfg.WindowFn(d.inputBuf[idx])
-		d.fftPlans[idx].Execute() // process into buf
-		d.spectrum.Process(buf, d.fftBuf)
+	d.shared.Lock()
 
-		for _, v := range buf[:barCount] {
+	for idx, buf := range d.barBufs {
+		// Lazily reprocess the buffers only when it's updated.
+		if d.shared.reproc {
+			d.cfg.WindowFn(d.shared.readBuf[idx])
+			d.fftPlans[idx].Execute() // process into buf
+		}
+
+		d.spectrum.Process(buf, d.fftBufs[idx])
+
+		for _, v := range buf[:d.barCount] {
 			if peak < v {
 				peak = v
 			}
 		}
 	}
 
-	// We only need to check for one window to know the other is not nil.
-	if d.slowWindow != nil && peak > 0.01 {
-		d.fastWindow.Update(peak)
-		var vMean, vSD = d.slowWindow.Update(peak)
+	d.shared.reproc = false
+	d.shared.Unlock()
 
+	// Update the windows w/ the new peaks.
+	d.fastWindow.Update(peak)
+	vMean, vSD := d.slowWindow.Update(peak)
+
+	draw := peak > 0
+
+	// Only update the scale if we have an audible peak.
+	if d.slowWindow != nil && draw {
 		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
 			if math.Abs(d.fastWindow.Mean()-vMean) > (d.cfg.Scaling.ResetDeviation * vSD) {
-				vMean, vSD = d.slowWindow.Drop(int(float64(length) * d.cfg.Scaling.DumpPercent))
+				count := int(float64(length) * d.cfg.Scaling.DumpPercent)
+				vMean, vSD = d.slowWindow.Drop(count)
 			}
 		}
 
 		if t := vMean + (1.5 * vSD); t > 1.0 {
-			scale = t
+			d.scale = t
 		}
 	}
 
+	return draw
+}
+
+func (d *Drawer) Process() {
 	d.shared.Lock()
+	defer d.shared.Unlock()
 
-	d.shared.peak = peak
-	d.shared.scale = scale
-	input.CopyBuffers(d.shared.barBufRead, d.shared.barBufWrite)
+	d.shared.reproc = true
 
-	d.shared.Unlock()
+	if d.shared.paused {
+		writeZeroBuf(d.shared.readBuf)
+		return
+	}
+
+	// Copy the audio over.
+	input.CopyBuffers(d.shared.readBuf, d.shared.writeBuf)
 }
 
 func writeZeroBuf(buf [][]input.Sample) {
@@ -184,12 +190,12 @@ func writeZeroBuf(buf [][]input.Sample) {
 	}
 }
 
-func (d *Drawer) makeBarBuf() [][]float64 {
+func (d *Drawer) reallocBarBufs() {
 	// Allocate a large slice with one large backing array.
-	var fullBuf = make([]float64, d.channels*d.cfg.SampleSize)
+	fullBuf := make([]float64, d.channels*d.cfg.SampleSize)
 
 	// Allocate smaller slice views.
-	var barBufs = make([][]float64, d.channels)
+	barBufs := make([][]float64, d.channels)
 
 	for idx := range barBufs {
 		start := idx * d.cfg.SampleSize
@@ -198,7 +204,26 @@ func (d *Drawer) makeBarBuf() [][]float64 {
 		barBufs[idx] = fullBuf[start:end]
 	}
 
-	return barBufs
+	d.barBufs = barBufs
+}
+
+func (d *Drawer) reallocFFTBufs() {
+	eachLen := d.cfg.SampleSize/2 + 1
+
+	// Allocate a large slice with one large backing array.
+	fullBuf := make([]complex128, d.channels*eachLen)
+
+	// Allocate smaller slice views.
+	fftBufs := make([][]complex128, d.channels)
+
+	for idx := range fftBufs {
+		start := idx * eachLen
+		end := (idx + 1) * eachLen
+
+		fftBufs[idx] = fullBuf[start:end]
+	}
+
+	d.fftBufs = fftBufs
 }
 
 // bars calculates the number of bars. It is thread-safe.

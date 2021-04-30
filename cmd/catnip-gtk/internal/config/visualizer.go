@@ -1,7 +1,7 @@
 package config
 
 import (
-	"math"
+	"fmt"
 
 	"github.com/diamondburned/catnip-gtk"
 	"github.com/diamondburned/handy"
@@ -14,7 +14,8 @@ import (
 
 type Visualizer struct {
 	SampleRate float64
-	FrameRate  float64
+	SampleSize int
+	FrameRate  int
 
 	WindowFn     WindowFn
 	SmoothFactor float64
@@ -28,7 +29,8 @@ type Visualizer struct {
 
 func NewVisualizer() Visualizer {
 	return Visualizer{
-		SampleRate: 48000,
+		SampleRate: 44100,
+		SampleSize: 1024,
 		FrameRate:  60,
 
 		SmoothFactor: 65.69,
@@ -42,11 +44,17 @@ func NewVisualizer() Visualizer {
 	}
 }
 
-func (v Visualizer) SampleSize() int {
-	return int(math.Round(v.SampleRate / v.FrameRate))
-}
-
 func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
+	samplingGroup := handy.PreferencesGroupNew()
+
+	updateSamplingLabel := func() {
+		samplingGroup.SetTitle(fmt.Sprintf(
+			"Sampling and Drawing (fₛ = %.0f samples/s)",
+			v.SampleRate/float64(v.SampleSize),
+		))
+	}
+	updateSamplingLabel()
+
 	sampleRateSpin, _ := gtk.SpinButtonNewWithRange(4000, 192000, 4000)
 	sampleRateSpin.SetVAlign(gtk.ALIGN_CENTER)
 	sampleRateSpin.SetProperty("digits", 0)
@@ -54,6 +62,7 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	sampleRateSpin.Show()
 	sampleRateSpin.Connect("value-changed", func(sampleRateSpin *gtk.SpinButton) {
 		v.SampleRate = sampleRateSpin.GetValue()
+		updateSamplingLabel()
 		apply()
 	})
 
@@ -64,13 +73,31 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	sampleRateRow.SetSubtitle("The sample rate to record; higher is more accurate.")
 	sampleRateRow.Show()
 
+	sampleSizeSpin, _ := gtk.SpinButtonNewWithRange(1, 102400, 128)
+	sampleSizeSpin.SetVAlign(gtk.ALIGN_CENTER)
+	sampleSizeSpin.SetProperty("digits", 0)
+	sampleSizeSpin.SetValue(float64(v.SampleSize))
+	sampleSizeSpin.Show()
+	sampleSizeSpin.Connect("value-changed", func(sampleSizeSpin *gtk.SpinButton) {
+		v.SampleSize = sampleSizeSpin.GetValueAsInt()
+		updateSamplingLabel()
+		apply()
+	})
+
+	sampleSizeRow := handy.ActionRowNew()
+	sampleSizeRow.Add(sampleSizeSpin)
+	sampleSizeRow.SetActivatableWidget(sampleSizeSpin)
+	sampleSizeRow.SetTitle("Sample Size")
+	sampleSizeRow.SetSubtitle("The sample size to record; higher is more accurate but slower.")
+	sampleSizeRow.Show()
+
 	frameRateSpin, _ := gtk.SpinButtonNewWithRange(5, 240, 5)
 	frameRateSpin.SetVAlign(gtk.ALIGN_CENTER)
 	frameRateSpin.SetProperty("digits", 0)
-	frameRateSpin.SetValue(v.FrameRate)
+	frameRateSpin.SetValue(float64(v.FrameRate))
 	frameRateSpin.Show()
 	frameRateSpin.Connect("value-changed", func(frameRateSpin *gtk.SpinButton) {
-		v.FrameRate = frameRateSpin.GetValue()
+		v.FrameRate = frameRateSpin.GetValueAsInt()
 		apply()
 	})
 
@@ -78,12 +105,12 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	frameRateRow.Add(frameRateSpin)
 	frameRateRow.SetActivatableWidget(frameRateSpin)
 	frameRateRow.SetTitle("Frame Rate (fps)")
-	frameRateRow.SetSubtitle("The frame rate to sample; lower is more accurate.")
+	frameRateRow.SetSubtitle("The frame rate to draw in parallel with the sampling; " +
+		"this affects the smoothing.")
 	frameRateRow.Show()
 
-	samplingGroup := handy.PreferencesGroupNew()
-	samplingGroup.SetTitle("Sampling")
 	samplingGroup.Add(sampleRateRow)
+	samplingGroup.Add(sampleSizeRow)
 	samplingGroup.Add(frameRateRow)
 	samplingGroup.Show()
 
@@ -167,7 +194,7 @@ const (
 func (dt Distribution) AsSpectrumType() dsp.SpectrumType {
 	switch dt {
 	case DistributeLog:
-		return dsp.TypeLog
+		return dsp.TypeLog2
 	case DistributeEqual:
 		return dsp.TypeEqual
 	default:

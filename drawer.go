@@ -59,29 +59,27 @@ type Drawer struct {
 	backend  input.Backend
 	device   input.Device
 	inputCfg input.SessionConfig
-	inputBuf [][]input.Sample
 
-	fftBuf   []complex128
 	fftPlans []*fft.Plan
+	fftBufs  [][]complex128
+	barBufs  [][]input.Sample
 	spectrum dsp.Spectrum
 
 	slowWindow *catniputil.MovingWindow
 	fastWindow *catniputil.MovingWindow
 
 	oldWidth float64
+	scale    float64
+	barCount int
 
 	shared struct {
 		sync.Mutex
+		paused bool
+		reproc bool
 
-		scale float64
-		peak  float64
-
-		// MUTEX SWAP
-		barBufRead  [][]input.Sample
-		barBufWrite [][]input.Sample
-
-		barCount int
-		paused   bool
+		// Input buffers.
+		readBuf  [][]input.Sample
+		writeBuf [][]input.Sample
 	}
 }
 
@@ -189,6 +187,21 @@ type AllocatedSizeGetter interface {
 	GetAllocatedHeight() int
 }
 
+// SetBackend overrides the given Backend in the config.
+func (d *Drawer) SetBackend(backend input.Backend) {
+	d.backend = backend
+}
+
+// SetDevice overrides the given Device in the config.
+func (d *Drawer) SetDevice(device input.Device) {
+	d.device = device
+}
+
+// Stop signals the event loop to stop. It does not block.
+func (d *Drawer) Stop() {
+	d.cancel()
+}
+
 // Draw is bound to the draw signal. Although Draw won't crash if Drawer is not
 // started yet, the drawn result is undefined.
 func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
@@ -205,20 +218,17 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 
 	cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
 
-	cr.Save()
-	defer cr.Restore()
+	// cr.Save()
+	// defer cr.Restore()
 
 	cr.SetAntialias(d.cfg.AntiAlias)
 	cr.SetLineWidth(d.cfg.BarWidth)
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
 
-	d.shared.Lock()
-	defer d.shared.Unlock()
-
 	if d.oldWidth != width {
 		d.oldWidth = width
-		d.shared.barCount = d.spectrum.Recalculate(d.bars(width))
+		d.barCount = d.spectrum.Recalculate(d.bars(width))
 	}
 
 	cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
@@ -228,6 +238,68 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 		d.drawVertically(width, height, cr)
 	case Horizontal:
 		d.drawHorizontally(width, height, cr)
+	}
+}
+
+func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
+	bins := d.barBufs
+	center := (height - d.cfg.MinimumClamp) / 2
+	scale := center / d.scale
+
+	if center < 0 {
+		center = 0
+	}
+
+	// Round up the width so we don't draw a partial bar.
+	xColMax := math.Round(width/d.binWidth) * d.binWidth
+
+	// Calculate the starting position so it's in the middle.
+	xCol := d.binWidth/2 + (width-xColMax)/2
+
+	lBins := bins[0]
+	rBins := bins[1%len(bins)]
+
+	for xBin := 0; xBin < d.barCount && xCol < xColMax; xBin++ {
+		lStop := calculateBar(lBins[xBin]*scale, center, d.cfg.MinimumClamp)
+		rStop := calculateBar(rBins[xBin]*scale, center, d.cfg.MinimumClamp)
+
+		if !math.IsNaN(lStop) && !math.IsNaN(rStop) {
+			d.drawBar(cr, xCol, lStop, height-rStop)
+		} else if d.cfg.MinimumClamp > 0 {
+			d.drawBar(cr, xCol, center, center+d.cfg.MinimumClamp)
+		}
+
+		xCol += d.binWidth
+	}
+}
+
+func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
+	bins := d.barBufs
+	scale := height / d.scale
+
+	delta := 1
+
+	// Round up the width so we don't draw a partial bar.
+	xColMax := math.Round(width/d.binWidth) * d.binWidth
+
+	xBin := 0
+	xCol := (d.binWidth)/2 + (width-xColMax)/2
+
+	for _, chBins := range bins {
+		for xBin < d.barCount && xBin >= 0 && xCol < xColMax {
+			stop := calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
+
+			// Don't draw if stop is NaN for some reason.
+			if !math.IsNaN(stop) {
+				d.drawBar(cr, xCol, height, stop)
+			}
+
+			xCol += d.binWidth
+			xBin += delta
+		}
+
+		delta = -delta
+		xBin += delta // ensure xBin is not out of bounds first.
 	}
 }
 
@@ -243,19 +315,4 @@ func calculateBar(value, height, clamp float64) float64 {
 	bar += bar * (clamp / height)
 
 	return height - bar
-}
-
-// SetBackend overrides the given Backend in the config.
-func (d *Drawer) SetBackend(backend input.Backend) {
-	d.backend = backend
-}
-
-// SetDevice overrides the given Device in the config.
-func (d *Drawer) SetDevice(device input.Device) {
-	d.device = device
-}
-
-// Stop signals the event loop to stop. It does not block.
-func (d *Drawer) Stop() {
-	d.cancel()
 }
