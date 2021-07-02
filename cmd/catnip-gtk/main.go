@@ -3,12 +3,10 @@ package main
 import (
 	"log"
 	"os"
-	"path/filepath"
 
-	"github.com/diamondburned/catnip-gtk/cmd/catnip-gtk/internal/config"
+	"github.com/diamondburned/catnip-gtk/cmd/catnip-gtk/catnipgtk"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 
 	// Required.
@@ -17,29 +15,18 @@ import (
 	_ "github.com/noriah/catnip/input/portaudio"
 )
 
-var configPath = filepath.Join(glib.GetUserConfigDir(), "catnip-gtk", "config.json")
-
 func init() {
 	gtk.Init(&os.Args)
 	handy.Init()
-
-	if err := os.MkdirAll(filepath.Dir(configPath), os.ModePerm); err != nil {
-		log.Println("failed to make config directory:", err)
-		configPath = ""
-	}
 }
 
 func main() {
-	cfg, err := config.ReadConfig(configPath)
+	cfg, err := catnipgtk.ReadUserConfig()
 	if err != nil {
-		log.Println("failed to load config, using default:", err)
-		cfg, err = config.NewConfig()
-	}
-	if err != nil {
-		log.Fatalln("failed to create config:", err)
+		log.Fatalln("failed to read config:", err)
 	}
 
-	session := NewSession(cfg)
+	session := catnipgtk.NewSession(cfg)
 	session.Reload()
 	session.Show()
 
@@ -90,12 +77,12 @@ func main() {
 	gtk.Main()
 }
 
-func save(cfg *config.Config) {
-	if configPath == "" {
+func save(cfg *catnipgtk.Config) {
+	if catnipgtk.UserConfigPath == "" {
 		return
 	}
 
-	if err := cfg.Save(configPath); err != nil {
+	if err := cfg.Save(catnipgtk.UserConfigPath); err != nil {
 		log.Println("failed to save config:", err)
 	}
 }

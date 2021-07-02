@@ -91,10 +91,12 @@ func (d *Drawer) Start() (err error) {
 	// Initialize the FFT plans.
 	d.fftPlans = make([]*fft.Plan, d.channels)
 	for idx := range d.fftPlans {
-		d.fftPlans[idx] = &fft.Plan{
+		plan := fft.Plan{
 			Input:  d.shared.readBuf[idx],
 			Output: d.fftBufs[idx],
 		}
+		plan.Init()
+		d.fftPlans[idx] = &plan
 	}
 
 	// Periodically queue redraw. Note that this is never a perfect rounding:

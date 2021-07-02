@@ -1,12 +1,17 @@
-package config
+package catnipgtk
 
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 
 	"github.com/diamondburned/handy"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/pkg/errors"
 )
+
+// UserConfigPath is the default path to the user's config file.
+var UserConfigPath = filepath.Join(glib.GetUserConfigDir(), "catnip-gtk", "config.json")
 
 type Config struct {
 	Input      Input
@@ -14,6 +19,7 @@ type Config struct {
 	Visualizer Visualizer
 }
 
+// NewConfig creates a new default config.
 func NewConfig() (*Config, error) {
 	cfg := Config{
 		Appearance: NewAppearance(),
@@ -30,6 +36,16 @@ func NewConfig() (*Config, error) {
 	return &cfg, nil
 }
 
+// ReadUserConfig reads the user's config file at the default user path.
+func ReadUserConfig() (*Config, error) {
+	c, err := ReadConfig(UserConfigPath)
+	if err == nil {
+		return c, nil
+	}
+	return NewConfig()
+}
+
+// ReadConfig reads the config at the given path.
 func ReadConfig(path string) (*Config, error) {
 	c, err := NewConfig()
 	if err != nil {
@@ -73,6 +89,10 @@ func (cfg *Config) PreferencesWindow(apply func()) *handy.PreferencesWindow {
 }
 
 func (cfg Config) Save(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return errors.Wrap(err, "failed to mkdir -p")
+	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		return errors.Wrap(err, "failed to create config file")

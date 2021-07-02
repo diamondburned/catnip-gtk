@@ -1,4 +1,4 @@
-package main
+package catnipgtk
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/diamondburned/catnip-gtk"
-	"github.com/diamondburned/catnip-gtk/cmd/catnip-gtk/internal/config"
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -21,11 +20,11 @@ type Session struct {
 	Drawer *catnip.Drawer
 
 	css      *gtk.CssProvider
-	config   *config.Config
+	config   *Config
 	handlers []glib.SignalHandle
 }
 
-func NewSession(cfg *config.Config) *Session {
+func NewSession(cfg *Config) *Session {
 	errLabel, _ := gtk.LabelNew("")
 	errLabel.Show()
 

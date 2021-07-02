@@ -1,4 +1,4 @@
-package config
+package catnipgtk
 
 import (
 	"fmt"
@@ -48,9 +48,10 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	samplingGroup := handy.PreferencesGroupNew()
 
 	updateSamplingLabel := func() {
+		fₛ := v.SampleRate / float64(v.SampleSize)
 		samplingGroup.SetTitle(fmt.Sprintf(
-			"Sampling and Drawing (fₛ = %.0f samples/s)",
-			v.SampleRate/float64(v.SampleSize),
+			"Sampling and Drawing (fₛ ≈ %.1f samples/s, latency ≈ %.1fms)",
+			fₛ, 1000/fₛ,
 		))
 	}
 	updateSamplingLabel()
