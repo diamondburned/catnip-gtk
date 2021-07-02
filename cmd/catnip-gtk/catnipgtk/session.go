@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/diamondburned/catnip-gtk"
-	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -86,38 +85,7 @@ func (s *Session) verifyHandlers(handlers ...glib.SignalHandle) bool {
 }
 
 func (s *Session) Reload() {
-	catnipCfg := catnip.Config{
-		WindowFn:     s.config.Visualizer.WindowFn.AsFunction(),
-		SampleRate:   s.config.Visualizer.SampleRate,
-		SampleSize:   s.config.Visualizer.SampleSize,
-		SmoothFactor: s.config.Visualizer.SmoothFactor,
-		Monophonic:   !s.config.Input.DualChannel,
-		MinimumClamp: s.config.Appearance.MinimumClamp,
-		Symmetry:     s.config.Appearance.Symmetry,
-		SpectrumType: s.config.Visualizer.Distribution.AsSpectrumType(),
-		DrawOptions: catnip.DrawOptions{
-			LineCap:    s.config.Appearance.LineCap.AsLineCap(),
-			LineJoin:   cairo.LINE_JOIN_MITER,
-			FrameRate:  s.config.Visualizer.FrameRate,
-			BarWidth:   s.config.Appearance.BarWidth,
-			SpaceWidth: s.config.Appearance.SpaceWidth,
-			AntiAlias:  s.config.Appearance.AntiAlias.AsAntialias(),
-			ForceEven:  false,
-		},
-		Scaling: catnip.ScalingConfig{
-			SlowWindow:     5,
-			FastWindow:     4,
-			DumpPercent:    0.75,
-			ResetDeviation: 1.0,
-		},
-	}
-
-	if s.config.Appearance.ForegroundColor != nil {
-		catnipCfg.DrawOptions.Colors.Foreground = s.config.Appearance.ForegroundColor
-	}
-	if s.config.Appearance.BackgroundColor != nil {
-		catnipCfg.DrawOptions.Colors.Background = s.config.Appearance.BackgroundColor
-	}
+	catnipCfg := s.config.Transform()
 
 	if err := s.css.LoadFromData(s.config.Appearance.CustomCSS); err != nil {
 		log.Println("CSS error:", err)

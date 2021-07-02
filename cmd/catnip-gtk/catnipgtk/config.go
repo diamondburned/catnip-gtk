@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/diamondburned/catnip-gtk"
 	"github.com/diamondburned/handy"
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/pkg/errors"
 )
@@ -86,6 +88,44 @@ func (cfg *Config) PreferencesWindow(apply func()) *handy.PreferencesWindow {
 	window.Add(visualizer)
 
 	return window
+}
+
+// Transform turns this config into a catnip config.
+func (cfg Config) Transform() catnip.Config {
+	catnipCfg := catnip.Config{
+		WindowFn:     cfg.Visualizer.WindowFn.AsFunction(),
+		SampleRate:   cfg.Visualizer.SampleRate,
+		SampleSize:   cfg.Visualizer.SampleSize,
+		SmoothFactor: cfg.Visualizer.SmoothFactor,
+		Monophonic:   !cfg.Input.DualChannel,
+		MinimumClamp: cfg.Appearance.MinimumClamp,
+		Symmetry:     cfg.Appearance.Symmetry,
+		SpectrumType: cfg.Visualizer.Distribution.AsSpectrumType(),
+		DrawOptions: catnip.DrawOptions{
+			LineCap:    cfg.Appearance.LineCap.AsLineCap(),
+			LineJoin:   cairo.LINE_JOIN_MITER,
+			FrameRate:  cfg.Visualizer.FrameRate,
+			BarWidth:   cfg.Appearance.BarWidth,
+			SpaceWidth: cfg.Appearance.SpaceWidth,
+			AntiAlias:  cfg.Appearance.AntiAlias.AsAntialias(),
+			ForceEven:  false,
+		},
+		Scaling: catnip.ScalingConfig{
+			SlowWindow:     5,
+			FastWindow:     4,
+			DumpPercent:    0.75,
+			ResetDeviation: 1.0,
+		},
+	}
+
+	if cfg.Appearance.ForegroundColor != nil {
+		catnipCfg.DrawOptions.Colors.Foreground = cfg.Appearance.ForegroundColor
+	}
+	if cfg.Appearance.BackgroundColor != nil {
+		catnipCfg.DrawOptions.Colors.Background = cfg.Appearance.BackgroundColor
+	}
+
+	return catnipCfg
 }
 
 func (cfg Config) Save(path string) error {
