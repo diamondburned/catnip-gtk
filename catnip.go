@@ -1,6 +1,7 @@
 package catnip
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
@@ -8,6 +9,8 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
+	"github.com/noriah/catnip/input"
+	"github.com/pkg/errors"
 )
 
 // Config is the catnip config.
@@ -138,6 +141,45 @@ func NewConfig() Config {
 			ResetDeviation: 1.0,
 		},
 	}
+}
+
+// InitBackend initializes a new input backend.
+func (c *Config) InitBackend() (input.Backend, error) {
+	backend := input.FindBackend(c.Backend)
+	if backend == nil {
+		return nil, fmt.Errorf("backend not found: %q", c.Backend)
+	}
+
+	if err := backend.Init(); err != nil {
+		return nil, errors.Wrap(err, "failed to initialize input backend")
+	}
+
+	return backend, nil
+}
+
+// InitDevice initializes an input device with the given initalized backend.
+func (c *Config) InitDevice(b input.Backend) (input.Device, error) {
+	if c.Device == "" {
+		def, err := b.DefaultDevice()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get default device")
+		}
+
+		return def, nil
+	}
+
+	devices, err := b.Devices()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get devices")
+	}
+
+	for idx := range devices {
+		if devices[idx].String() == c.Device {
+			return devices[idx], nil
+		}
+	}
+
+	return nil, errors.Errorf("device %q not found; check list-devices", c.Device)
 }
 
 // Area is the area that Catnip draws onto.

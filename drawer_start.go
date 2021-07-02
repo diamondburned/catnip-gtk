@@ -52,7 +52,7 @@ func (d *Drawer) Start() (err error) {
 	}
 
 	if d.backend == nil {
-		d.backend, err = initBackend(d.cfg)
+		d.backend, err = d.cfg.InitBackend()
 		if err != nil {
 			return errors.Wrap(err, "failed to initialize input backend")
 		}
@@ -60,7 +60,7 @@ func (d *Drawer) Start() (err error) {
 	defer d.backend.Close()
 
 	if d.device == nil {
-		d.device, err = getDevice(d.backend, d.cfg)
+		d.device, err = d.cfg.InitDevice(d.backend)
 		if err != nil {
 			return err
 		}
