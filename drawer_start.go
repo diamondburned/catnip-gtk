@@ -18,7 +18,7 @@ import (
 //
 // The loop will automatically close when the DrawingArea is destroyed.
 func (d *Drawer) Start() (err error) {
-	if d.barBufs != nil {
+	if d.shared.barBufs != nil {
 		// Panic is reasonable, as calling Start() multiple times (in multiple
 		// goroutines) may cause undefined behaviors.
 		panic("BUG: catnip.Area is already started.")
@@ -127,7 +127,7 @@ func (d *Drawer) updateBars() bool {
 
 	d.shared.Lock()
 
-	for idx, buf := range d.barBufs {
+	for idx, buf := range d.shared.barBufs {
 		// Lazily reprocess the buffers only when it's updated.
 		if d.shared.reproc {
 			d.cfg.WindowFn(d.shared.readBuf[idx])
@@ -206,7 +206,7 @@ func (d *Drawer) reallocBarBufs() {
 		barBufs[idx] = fullBuf[start:end]
 	}
 
-	d.barBufs = barBufs
+	d.shared.barBufs = barBufs
 }
 
 func (d *Drawer) reallocFFTBufs() {

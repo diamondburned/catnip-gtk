@@ -93,11 +93,13 @@ func (cfg *Config) PreferencesWindow(apply func()) *handy.PreferencesWindow {
 // Transform turns this config into a catnip config.
 func (cfg Config) Transform() catnip.Config {
 	catnipCfg := catnip.Config{
+		Backend:      cfg.Input.Backend,
+		Device:       cfg.Input.Device,
+		Monophonic:   !cfg.Input.DualChannel,
 		WindowFn:     cfg.Visualizer.WindowFn.AsFunction(),
 		SampleRate:   cfg.Visualizer.SampleRate,
 		SampleSize:   cfg.Visualizer.SampleSize,
 		SmoothFactor: cfg.Visualizer.SmoothFactor,
-		Monophonic:   !cfg.Input.DualChannel,
 		MinimumClamp: cfg.Appearance.MinimumClamp,
 		Symmetry:     cfg.Appearance.Symmetry,
 		SpectrumType: cfg.Visualizer.Distribution.AsSpectrumType(),

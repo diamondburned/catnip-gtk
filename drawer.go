@@ -62,7 +62,6 @@ type Drawer struct {
 
 	fftPlans []*fft.Plan
 	fftBufs  [][]complex128
-	barBufs  [][]input.Sample
 	spectrum dsp.Spectrum
 
 	slowWindow *catniputil.MovingWindow
@@ -80,6 +79,9 @@ type Drawer struct {
 		// Input buffers.
 		readBuf  [][]input.Sample
 		writeBuf [][]input.Sample
+
+		// Output bars.
+		barBufs [][]input.Sample
 	}
 }
 
@@ -205,21 +207,12 @@ func (d *Drawer) Stop() {
 // Draw is bound to the draw signal. Although Draw won't crash if Drawer is not
 // started yet, the drawn result is undefined.
 func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
-	// now := time.Now()
-	// defer func() {
-	// 	log.Printf(
-	// 		"visualizer took %12dus to draw\n", time.Now().Sub(now).Microseconds())
-	// }()
-
 	var (
 		width  = float64(d.cfg.even(w.GetAllocatedWidth()))
 		height = float64(d.cfg.even(w.GetAllocatedHeight()))
 	)
 
 	cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
-
-	// cr.Save()
-	// defer cr.Restore()
 
 	cr.SetAntialias(d.cfg.AntiAlias)
 	cr.SetLineWidth(d.cfg.BarWidth)
@@ -233,6 +226,9 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 
 	cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
 
+	d.shared.Lock()
+	defer d.shared.Unlock()
+
 	switch d.cfg.Symmetry {
 	case Vertical:
 		d.drawVertically(width, height, cr)
@@ -242,7 +238,7 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 }
 
 func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
-	bins := d.barBufs
+	bins := d.shared.barBufs
 	center := (height - d.cfg.MinimumClamp) / 2
 	scale := center / d.scale
 
@@ -274,7 +270,7 @@ func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 }
 
 func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
-	bins := d.barBufs
+	bins := d.shared.barBufs
 	scale := height / d.scale
 
 	delta := 1
