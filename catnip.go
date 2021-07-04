@@ -7,7 +7,6 @@ import (
 
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
@@ -26,7 +25,6 @@ type Config struct {
 	SampleSize   int
 	SmoothFactor float64
 	MinimumClamp float64 // height before visible
-	SpectrumType dsp.SpectrumType
 
 	DrawOptions
 
@@ -123,7 +121,6 @@ func NewConfig() Config {
 		SmoothFactor: 65.69,
 		Monophonic:   false,
 		MinimumClamp: 1,
-		SpectrumType: dsp.TypeDefault,
 
 		DrawOptions: DrawOptions{
 			LineCap:    cairo.LINE_CAP_BUTT,

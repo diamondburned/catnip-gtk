@@ -24,13 +24,20 @@ func (d *Drawer) Start() (err error) {
 		panic("BUG: catnip.Area is already started.")
 	}
 
-	d.spectrum = dsp.Spectrum{
-		SampleRate: d.cfg.SampleRate,
-		SampleSize: d.cfg.SampleSize,
-		Bins:       make(dsp.BinBuf, d.cfg.SampleSize),
+	if d.backend == nil {
+		d.backend, err = d.cfg.InitBackend()
+		if err != nil {
+			return errors.Wrap(err, "failed to initialize input backend")
+		}
 	}
-	d.spectrum.SetSmoothing(d.cfg.SmoothFactor / 100)
-	d.spectrum.SetType(d.cfg.SpectrumType)
+	defer d.backend.Close()
+
+	if d.device == nil {
+		d.device, err = d.cfg.InitDevice(d.backend)
+		if err != nil {
+			return err
+		}
+	}
 
 	d.scale = d.cfg.Scaling.StaticScale
 	if d.scale == 0 {
@@ -51,20 +58,12 @@ func (d *Drawer) Start() (err error) {
 		}
 	}
 
-	if d.backend == nil {
-		d.backend, err = d.cfg.InitBackend()
-		if err != nil {
-			return errors.Wrap(err, "failed to initialize input backend")
-		}
+	d.spectrum = dsp.Spectrum{
+		SampleRate: d.cfg.SampleRate,
+		SampleSize: d.cfg.SampleSize,
+		Bins:       make([]dsp.Bin, d.cfg.SampleSize),
 	}
-	defer d.backend.Close()
-
-	if d.device == nil {
-		d.device, err = d.cfg.InitDevice(d.backend)
-		if err != nil {
-			return err
-		}
-	}
+	d.spectrum.SetSmoothing(d.cfg.SmoothFactor / 100)
 
 	sessionConfig := input.SessionConfig{
 		Device:     d.device,
@@ -73,18 +72,10 @@ func (d *Drawer) Start() (err error) {
 		SampleRate: d.cfg.SampleRate,
 	}
 
-	session, err := d.backend.Start(sessionConfig)
-	if err != nil {
-		return errors.Wrap(err, "failed to start the input backend")
-	}
-
-	// Free up the device.
-	d.device = nil
-	sessionConfig.Device = nil
-
 	// Allocate buffers.
 	d.reallocBarBufs()
 	d.reallocFFTBufs()
+	d.reallocSpectrumOldValues()
 	d.shared.readBuf = input.MakeBuffers(sessionConfig)
 	d.shared.writeBuf = input.MakeBuffers(sessionConfig)
 
@@ -93,11 +84,20 @@ func (d *Drawer) Start() (err error) {
 	for idx := range d.fftPlans {
 		plan := fft.Plan{
 			Input:  d.shared.readBuf[idx],
-			Output: d.fftBufs[idx],
+			Output: d.fftBuf,
 		}
 		plan.Init()
 		d.fftPlans[idx] = &plan
 	}
+
+	// Signal the backend to start listening to the microphone.
+	session, err := d.backend.Start(sessionConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to start the input backend")
+	}
+
+	// Free up the device.
+	d.device = nil
 
 	// Periodically queue redraw. Note that this is never a perfect rounding:
 	// inputting 60Hz will trigger a redraw every 16ms, which is 62.5Hz.
@@ -126,6 +126,7 @@ func (d *Drawer) updateBars() bool {
 	peak := 0.0
 
 	d.shared.Lock()
+	defer d.shared.Unlock()
 
 	for idx, buf := range d.shared.barBufs {
 		// Lazily reprocess the buffers only when it's updated.
@@ -134,39 +135,39 @@ func (d *Drawer) updateBars() bool {
 			d.fftPlans[idx].Execute() // process into buf
 		}
 
-		d.spectrum.Process(buf, d.fftBufs[idx])
+		for bIdx := range buf[:d.barCount] {
+			v := d.spectrum.ProcessBin(idx, bIdx, d.fftBuf)
+			d.shared.barBufs[idx][bIdx] = v
 
-		for _, v := range buf[:d.barCount] {
 			if peak < v {
 				peak = v
 			}
 		}
 	}
 
+	// Reset the reprocess marker.
 	d.shared.reproc = false
-	d.shared.Unlock()
 
-	// Update the windows w/ the new peaks.
-	d.fastWindow.Update(peak)
-	vMean, vSD := d.slowWindow.Update(peak)
-
-	draw := peak > 0
+	update := peak > 0
 
 	// Only update the scale if we have an audible peak.
-	if d.slowWindow != nil && draw {
+	if d.slowWindow != nil && update {
+		fastMean, _ := d.fastWindow.Update(peak)
+		slowMean, slowStddev := d.slowWindow.Update(peak)
+
 		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
-			if math.Abs(d.fastWindow.Mean()-vMean) > (d.cfg.Scaling.ResetDeviation * vSD) {
+			if math.Abs(fastMean-slowMean) > (d.cfg.Scaling.ResetDeviation * slowStddev) {
 				count := int(float64(length) * d.cfg.Scaling.DumpPercent)
-				vMean, vSD = d.slowWindow.Drop(count)
+				slowMean, slowStddev = d.slowWindow.Drop(count)
 			}
 		}
 
-		if t := vMean + (1.5 * vSD); t > 1.0 {
+		if t := slowMean + (1.5 * slowStddev); t > 1.0 {
 			d.scale = t
 		}
 	}
 
-	return draw
+	return update
 }
 
 func (d *Drawer) Process() {
@@ -193,39 +194,32 @@ func writeZeroBuf(buf [][]input.Sample) {
 }
 
 func (d *Drawer) reallocBarBufs() {
+	d.shared.barBufs = allocBarBufs(d.cfg.SampleSize, d.channels)
+}
+
+func (d *Drawer) reallocSpectrumOldValues() {
+	d.spectrum.OldValues = allocBarBufs(d.cfg.SampleSize, d.channels)
+}
+
+func allocBarBufs(sampleSize, channels int) [][]float64 {
 	// Allocate a large slice with one large backing array.
-	fullBuf := make([]float64, d.channels*d.cfg.SampleSize)
+	fullBuf := make([]float64, channels*sampleSize)
 
 	// Allocate smaller slice views.
-	barBufs := make([][]float64, d.channels)
+	barBufs := make([][]float64, channels)
 
 	for idx := range barBufs {
-		start := idx * d.cfg.SampleSize
-		end := (idx + 1) * d.cfg.SampleSize
+		start := idx * sampleSize
+		end := (idx + 1) * sampleSize
 
 		barBufs[idx] = fullBuf[start:end]
 	}
 
-	d.shared.barBufs = barBufs
+	return barBufs
 }
 
 func (d *Drawer) reallocFFTBufs() {
-	eachLen := d.cfg.SampleSize/2 + 1
-
-	// Allocate a large slice with one large backing array.
-	fullBuf := make([]complex128, d.channels*eachLen)
-
-	// Allocate smaller slice views.
-	fftBufs := make([][]complex128, d.channels)
-
-	for idx := range fftBufs {
-		start := idx * eachLen
-		end := (idx + 1) * eachLen
-
-		fftBufs[idx] = fullBuf[start:end]
-	}
-
-	d.fftBufs = fftBufs
+	d.fftBuf = make([]complex128, d.cfg.SampleSize/2+1)
 }
 
 // bars calculates the number of bars. It is thread-safe.

@@ -6,7 +6,6 @@ import (
 	"github.com/diamondburned/catnip-gtk"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/noriah/catnip/dsp"
 	"gonum.org/v1/gonum/dsp/window"
 
 	catnipwindow "github.com/noriah/catnip/dsp/window"
@@ -19,7 +18,6 @@ type Visualizer struct {
 
 	WindowFn     WindowFn
 	SmoothFactor float64
-	Distribution Distribution
 
 	ScaleSlowWindow     float64
 	ScaleFastWindow     float64
@@ -35,7 +33,6 @@ func NewVisualizer() Visualizer {
 
 		SmoothFactor: 65.69,
 		WindowFn:     BlackmanHarris,
-		Distribution: DistributeLog,
 
 		ScaleSlowWindow:     5,
 		ScaleFastWindow:     4,
@@ -134,24 +131,6 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	windowRow.SetSubtitle("The window function to use for signal processing.")
 	windowRow.Show()
 
-	distributionCombo, _ := gtk.ComboBoxTextNew()
-	distributionCombo.SetVAlign(gtk.ALIGN_CENTER)
-	distributionCombo.Show()
-	distributionCombo.Append(string(DistributeLog), string(DistributeLog))
-	distributionCombo.Append(string(DistributeEqual), string(DistributeEqual))
-	distributionCombo.SetActiveID(string(v.Distribution))
-	distributionCombo.Connect("changed", func(distributionCombo *gtk.ComboBoxText) {
-		v.Distribution = Distribution(distributionCombo.GetActiveID())
-		apply()
-	})
-
-	distributionRow := handy.ActionRowNew()
-	distributionRow.Add(distributionCombo)
-	distributionRow.SetActivatableWidget(distributionRow)
-	distributionRow.SetTitle("Distribution")
-	distributionRow.SetSubtitle("The frequency distribution algorithm to use.")
-	distributionRow.Show()
-
 	smoothFactorSpin, _ := gtk.SpinButtonNewWithRange(0, 100, 2)
 	smoothFactorSpin.SetVAlign(gtk.ALIGN_CENTER)
 	smoothFactorSpin.SetProperty("digits", 2)
@@ -172,7 +151,6 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	signalProcGroup := handy.PreferencesGroupNew()
 	signalProcGroup.SetTitle("Signal Processing")
 	signalProcGroup.Add(windowRow)
-	signalProcGroup.Add(distributionRow)
 	signalProcGroup.Add(smoothFactorRow)
 	signalProcGroup.Show()
 
@@ -183,24 +161,6 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	page.Add(signalProcGroup)
 
 	return page
-}
-
-type Distribution string
-
-const (
-	DistributeLog   Distribution = "Logarithmic"
-	DistributeEqual Distribution = "Equal"
-)
-
-func (dt Distribution) AsSpectrumType() dsp.SpectrumType {
-	switch dt {
-	case DistributeLog:
-		return dsp.TypeLog2
-	case DistributeEqual:
-		return dsp.TypeEqual
-	default:
-		return dsp.TypeDefault
-	}
 }
 
 type WindowFn string

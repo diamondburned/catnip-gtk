@@ -102,7 +102,6 @@ func (cfg Config) Transform() catnip.Config {
 		SmoothFactor: cfg.Visualizer.SmoothFactor,
 		MinimumClamp: cfg.Appearance.MinimumClamp,
 		Symmetry:     cfg.Appearance.Symmetry,
-		SpectrumType: cfg.Visualizer.Distribution.AsSpectrumType(),
 		DrawOptions: catnip.DrawOptions{
 			LineCap:    cfg.Appearance.LineCap.AsLineCap(),
 			LineJoin:   cairo.LINE_JOIN_MITER,

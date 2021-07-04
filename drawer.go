@@ -61,7 +61,7 @@ type Drawer struct {
 	inputCfg input.SessionConfig
 
 	fftPlans []*fft.Plan
-	fftBufs  [][]complex128
+	fftBuf   []complex128
 	spectrum dsp.Spectrum
 
 	slowWindow *catniputil.MovingWindow
@@ -212,22 +212,22 @@ func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
 		height = float64(d.cfg.even(w.GetAllocatedHeight()))
 	)
 
-	cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
+	// cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
 
 	cr.SetAntialias(d.cfg.AntiAlias)
 	cr.SetLineWidth(d.cfg.BarWidth)
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
 
-	if d.oldWidth != width {
-		d.oldWidth = width
-		d.barCount = d.spectrum.Recalculate(d.bars(width))
-	}
-
 	cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
 
 	d.shared.Lock()
 	defer d.shared.Unlock()
+
+	if d.oldWidth != width {
+		d.oldWidth = width
+		d.barCount = d.spectrum.Recalculate(d.bars(width))
+	}
 
 	switch d.cfg.Symmetry {
 	case Vertical:
