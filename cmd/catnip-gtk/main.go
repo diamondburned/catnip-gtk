@@ -34,8 +34,12 @@ func main() {
 	evbox.Add(session)
 	evbox.Show()
 
+	h := handy.WindowHandleNew()
+	h.Add(evbox)
+	h.Show()
+
 	w := handy.WindowNew()
-	w.Add(evbox)
+	w.Add(h)
 	w.SetDefaultSize(1000, 150)
 	w.Connect("destroy", func(w *handy.Window) { gtk.MainQuit() })
 	w.Show()
