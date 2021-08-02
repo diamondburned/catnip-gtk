@@ -82,7 +82,7 @@ func (cfg *Config) PreferencesWindow(apply func()) *handy.PreferencesWindow {
 
 	window := handy.PreferencesWindowNew()
 	window.SetSearchEnabled(true)
-	window.SetModal(true)
+	window.SetModal(false)
 	window.Add(input)
 	window.Add(appearance)
 	window.Add(visualizer)
