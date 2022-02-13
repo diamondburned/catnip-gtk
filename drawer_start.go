@@ -2,7 +2,6 @@ package catnip
 
 import (
 	"math"
-	"sync/atomic"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/noriah/catnip/dsp"
@@ -104,11 +103,7 @@ func (d *Drawer) Start() (err error) {
 	// inputting 60Hz will trigger a redraw every 16ms, which is 62.5Hz.
 	ms := 1000 / uint(d.cfg.DrawOptions.FrameRate)
 	timerHandle := glib.TimeoutAddPriority(ms, glib.PriorityDefault, func() bool {
-		if d.updateBars() {
-			d.shared.Lock()
-			d.updateScale()
-			d.shared.Unlock()
-
+		if d.processBars() {
 			d.parent.QueueDraw()
 		}
 		return true
@@ -124,27 +119,22 @@ func (d *Drawer) Start() (err error) {
 	return nil
 }
 
-// updateBars returns true if a redraw is needed.
-func (d *Drawer) updateBars() bool {
-	// return atomic.CompareAndSwapUint32(&d.redraw, 1, 0)
-	return true
-}
-
 // Process processes the internal read buffer and analyzes its spectrum.
 func (d *Drawer) Process() {
 	d.shared.Lock()
+	defer d.shared.Unlock()
 
 	if d.shared.paused {
 		writeZeroBuf(d.shared.readBuf)
 	} else {
 		input.CopyBuffers(d.shared.readBuf, d.shared.writeBuf)
 	}
-
-	d.shared.Unlock()
-	atomic.StoreUint32(&d.redraw, 1)
 }
 
-func (d *Drawer) updateScale() {
+func (d *Drawer) processBars() bool {
+	d.shared.Lock()
+	defer d.shared.Unlock()
+
 	d.shared.peak = 0
 
 	if d.shared.cairoWidth != d.shared.barWidth {
@@ -182,6 +172,20 @@ func (d *Drawer) updateScale() {
 			d.shared.scale = t
 		}
 	}
+
+	// Draw if peak is over the threshold.
+	if d.shared.peak > peakThreshold {
+		d.shared.quiet = 0
+		return true
+	}
+
+	// If we're not over the threshold, then draw until we're quiet for a while.
+	if d.shared.quiet < quietThreshold {
+		d.shared.quiet++
+		return true
+	}
+
+	return false
 }
 
 var zeroSamples = make([]input.Sample, 512)

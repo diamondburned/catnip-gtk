@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/diamondburned/gotk4/pkg/cairo"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v3"
 	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 	"github.com/noriah/catnip/dsp"
@@ -48,6 +49,7 @@ var _ DrawQueuer = (*gtk.Widget)(nil)
 // Drawer is the separated drawer state without any widget.
 type Drawer struct {
 	parent *gtk.Widget
+	handle []glib.SignalHandle
 
 	cfg    Config
 	ctx    context.Context
@@ -72,9 +74,6 @@ type Drawer struct {
 	slowWindow *catniputil.MovingWindow
 	fastWindow *catniputil.MovingWindow
 
-	// redraw uses atomic.
-	redraw uint32
-
 	background struct {
 		surface *cairo.Surface
 		width   float64
@@ -96,10 +95,16 @@ type Drawer struct {
 		barCount   int
 		scale      float64
 		peak       float64
+		quiet      int
 
 		paused bool
 	}
 }
+
+const (
+	quietThreshold = 25
+	peakThreshold  = 0.001
+)
 
 // NewDrawer creates a separated drawer state. The given drawQueuer will be
 // called every redrawn frame.
@@ -126,19 +131,21 @@ func NewDrawer(widget gtk.Widgetter, cfg Config) *Drawer {
 	}
 
 	w := gtk.BaseWidget(widget)
-	w.Connect("draw", d.Draw)
-	w.Connect("destroy", d.cancel)
 
-	w.ConnectStyleUpdated(func() {
-		// Invalidate the background.
-		d.background.surface = nil
+	d.handle = []glib.SignalHandle{
+		w.Connect("draw", d.Draw),
+		w.Connect("destroy", d.Stop),
+		w.ConnectStyleUpdated(func() {
+			// Invalidate the background.
+			d.background.surface = nil
 
-		styleCtx := w.StyleContext()
-		transparent := gdk.NewRGBA(0, 0, 0, 0)
+			styleCtx := w.StyleContext()
+			transparent := gdk.NewRGBA(0, 0, 0, 0)
 
-		d.fg = getColor(d.cfg.Colors.Foreground, styleCtx.Color(gtk.StateFlagNormal), d.fg)
-		d.bg = getColor(d.cfg.Colors.Background, &transparent, d.bg)
-	})
+			d.fg = getColor(d.cfg.Colors.Foreground, styleCtx.Color(gtk.StateFlagNormal), d.fg)
+			d.bg = getColor(d.cfg.Colors.Background, &transparent, d.bg)
+		}),
+	}
 
 	return d
 }
@@ -198,6 +205,9 @@ func (d *Drawer) SetDevice(device input.Device) {
 // Stop signals the event loop to stop. It does not block.
 func (d *Drawer) Stop() {
 	d.cancel()
+	for _, handle := range d.handle {
+		d.parent.HandlerDisconnect(handle)
+	}
 }
 
 // Draw is bound to the draw signal. Although Draw won't crash if Drawer is not
@@ -214,6 +224,9 @@ func (d *Drawer) Draw(widget gtk.Widgetter, cr *cairo.Context) {
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
 
+	cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
+	cr.Paint()
+
 	if d.background.surface == nil || d.background.width != width || d.background.height != height {
 		// Render the background onto the surface and use that as the source
 		// surface for our context.
@@ -223,8 +236,7 @@ func (d *Drawer) Draw(widget gtk.Widgetter, cr *cairo.Context) {
 
 		// Draw the user-requested line color.
 		cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
-		cr.Rectangle(0, 0, width, height)
-		cr.Fill()
+		cr.Paint()
 
 		// Draw the CSS background.
 		gtk.RenderBackground(w.StyleContext(), cairo.Create(surface), 0, 0, width, height)
