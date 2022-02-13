@@ -5,19 +5,26 @@ import (
 	"os"
 
 	"github.com/diamondburned/catnip-gtk/cmd/catnip-gtk/catnipgtk"
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4-handy/pkg/handy"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v3"
+	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 
 	// Required.
+	"github.com/noriah/catnip/dsp"
 	_ "github.com/noriah/catnip/input/ffmpeg"
 	_ "github.com/noriah/catnip/input/parec"
 	_ "github.com/noriah/catnip/input/portaudio"
 )
 
 func init() {
-	gtk.Init(&os.Args)
-	handy.Init()
+	// Weird hacks to reduce catnip's frequency scaling:
+
+	// Start drawing at 20Hz, not 60Hz.
+	dsp.Frequencies[1] = 20
+
+	// Don't scale frequencies below 250Hz differently.
+	dsp.Frequencies[2] = 0
 }
 
 func main() {
@@ -26,59 +33,77 @@ func main() {
 		log.Fatalln("failed to read config:", err)
 	}
 
-	session := catnipgtk.NewSession(cfg)
-	session.Reload()
-	session.Show()
+	app := gtk.NewApplication("com.github.diamondburned.catnip-gtk", 0)
+	app.ConnectActivate(func() {
+		handy.Init()
 
-	evbox, _ := gtk.EventBoxNew()
-	evbox.Add(session)
-	evbox.Show()
+		session := catnipgtk.NewSession(cfg)
+		session.Reload()
+		session.Show()
 
-	h := handy.WindowHandleNew()
-	h.Add(evbox)
-	h.Show()
+		evbox := gtk.NewEventBox()
+		evbox.Add(session)
+		evbox.Show()
 
-	w := handy.WindowNew()
-	w.Add(h)
-	w.SetDefaultSize(1000, 150)
-	w.Connect("destroy", func(w *handy.Window) { gtk.MainQuit() })
-	w.Show()
+		h := handy.NewWindowHandle()
+		h.Add(evbox)
+		h.Show()
 
-	wstyle, _ := w.GetStyleContext()
-	wstyle.AddClass("catnip")
+		w := handy.NewApplicationWindow()
+		w.SetApplication(app)
+		w.SetDefaultSize(cfg.WindowSize.Width, cfg.WindowSize.Height)
+		w.Add(h)
+		w.Show()
 
-	prefMenu, _ := gtk.MenuItemNewWithLabel("Preferences")
-	prefMenu.Show()
-	prefMenu.Connect("activate", func(prefMenu *gtk.MenuItem) {
-		cfgw := cfg.PreferencesWindow(session.Reload)
-		cfgw.Connect("destroy", func(*handy.PreferencesWindow) { save(cfg) })
-		cfgw.Show()
+		var resizeSave glib.SourceHandle
+		w.Connect("size-allocate", func() {
+			cfg.WindowSize.Width = w.AllocatedWidth()
+			cfg.WindowSize.Height = w.AllocatedHeight()
+
+			if resizeSave == 0 {
+				resizeSave = glib.TimeoutSecondsAdd(1, func() {
+					save(cfg)
+					resizeSave = 0
+				})
+			}
+		})
+
+		wstyle := w.StyleContext()
+		wstyle.AddClass("catnip")
+
+		prefMenu := gtk.NewMenuItemWithLabel("Preferences")
+		prefMenu.Show()
+		prefMenu.Connect("activate", func(prefMenu *gtk.MenuItem) {
+			cfgw := cfg.PreferencesWindow(session.Reload)
+			cfgw.Connect("destroy", func(*handy.PreferencesWindow) { save(cfg) })
+			cfgw.Show()
+		})
+
+		aboutMenu := gtk.NewMenuItemWithLabel("About")
+		aboutMenu.Show()
+		aboutMenu.Connect("activate", func(aboutMenu *gtk.MenuItem) {
+			about := About()
+			about.SetTransientFor(&w.Window)
+			about.Show()
+		})
+
+		quitMenu := gtk.NewMenuItemWithLabel("Quit")
+		quitMenu.Show()
+		quitMenu.Connect("activate", func(*gtk.MenuItem) { w.Destroy() })
+
+		menu := gtk.NewMenu()
+		menu.Append(prefMenu)
+		menu.Append(aboutMenu)
+		menu.Append(quitMenu)
+
+		evbox.Connect("button-press-event", func(evbox *gtk.EventBox, ev *gdk.Event) {
+			if b := ev.AsButton(); b.Button() == gdk.BUTTON_SECONDARY {
+				menu.PopupAtPointer(ev)
+			}
+		})
 	})
 
-	aboutMenu, _ := gtk.MenuItemNewWithLabel("About")
-	aboutMenu.Show()
-	aboutMenu.Connect("activate", func(aboutMenu *gtk.MenuItem) {
-		about := About()
-		about.SetTransientFor(w)
-		about.Show()
-	})
-
-	quitMenu, _ := gtk.MenuItemNewWithLabel("Quit")
-	quitMenu.Show()
-	quitMenu.Connect("activate", func(*gtk.MenuItem) { w.Destroy() })
-
-	menu, _ := gtk.MenuNew()
-	menu.Append(prefMenu)
-	menu.Append(aboutMenu)
-	menu.Append(quitMenu)
-
-	evbox.Connect("button-press-event", func(evbox *gtk.EventBox, ev *gdk.Event) {
-		if b := gdk.EventButtonNewFromEvent(ev); b.Button() == gdk.BUTTON_SECONDARY {
-			menu.PopupAtPointer(ev)
-		}
-	})
-
-	gtk.Main()
+	os.Exit(app.Run(os.Args))
 }
 
 func save(cfg *catnipgtk.Config) {

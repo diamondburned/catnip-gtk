@@ -3,8 +3,8 @@ package catnipgtk
 import (
 	"errors"
 
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4-handy/pkg/handy"
+	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 	"github.com/noriah/catnip/input"
 )
 
@@ -58,12 +58,12 @@ func (ic *Input) Update() {
 }
 
 func (ic *Input) Page(apply func()) *handy.PreferencesPage {
-	deviceCombo, _ := gtk.ComboBoxTextNew()
-	deviceCombo.SetVAlign(gtk.ALIGN_CENTER)
+	deviceCombo := gtk.NewComboBoxText()
+	deviceCombo.SetVAlign(gtk.AlignCenter)
 	deviceCombo.Show()
 
-	backendCombo, _ := gtk.ComboBoxTextNew()
-	backendCombo.SetVAlign(gtk.ALIGN_CENTER)
+	backendCombo := gtk.NewComboBoxText()
+	backendCombo.SetVAlign(gtk.AlignCenter)
 	backendCombo.Show()
 
 	addDeviceCombo(deviceCombo, ic.devices[ic.Backend])
@@ -74,7 +74,7 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 		ic.Device = ""
 	}
 	deviceComboCallback := deviceCombo.Connect("changed", func(deviceCombo *gtk.ComboBoxText) {
-		if ix := deviceCombo.GetActive(); ix > 0 {
+		if ix := deviceCombo.Active(); ix > 0 {
 			ic.Device = ic.devices[ic.Backend][ix].String()
 		} else {
 			ic.Device = "" // default
@@ -91,7 +91,7 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 		ic.Backend = input.Backends[0].Name
 	}
 	backendCombo.Connect("changed", func(backendCombo *gtk.ComboBoxText) {
-		ic.Backend = backendCombo.GetActiveText()
+		ic.Backend = backendCombo.ActiveText()
 		ic.Device = ""
 
 		deviceCombo.HandlerBlock(deviceComboCallback)
@@ -107,22 +107,22 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 		apply()
 	})
 
-	backendRow := handy.ActionRowNew()
+	backendRow := handy.NewActionRow()
 	backendRow.SetTitle("Backend")
 	backendRow.SetSubtitle("The backend to use for audio input.")
 	backendRow.Add(backendCombo)
 	backendRow.SetActivatableWidget(backendCombo)
 	backendRow.Show()
 
-	deviceRow := handy.ActionRowNew()
+	deviceRow := handy.NewActionRow()
 	deviceRow.SetTitle("Device")
 	deviceRow.SetSubtitle("The device to use for audio input.")
 	deviceRow.Add(deviceCombo)
 	deviceRow.SetActivatableWidget(deviceCombo)
 	deviceRow.Show()
 
-	dualCh, _ := gtk.SwitchNew()
-	dualCh.SetVAlign(gtk.ALIGN_CENTER)
+	dualCh := gtk.NewSwitch()
+	dualCh.SetVAlign(gtk.AlignCenter)
 	dualCh.SetActive(ic.DualChannel)
 	dualCh.Show()
 	dualCh.Connect("state-set", func(dualCh *gtk.Switch, state bool) {
@@ -130,21 +130,21 @@ func (ic *Input) Page(apply func()) *handy.PreferencesPage {
 		apply()
 	})
 
-	dualChRow := handy.ActionRowNew()
+	dualChRow := handy.NewActionRow()
 	dualChRow.Add(dualCh)
 	dualChRow.SetActivatableWidget(dualCh)
 	dualChRow.SetTitle("Dual Channels")
 	dualChRow.SetSubtitle("If enabled, will draw two channels mirrored instead of one.")
 	dualChRow.Show()
 
-	group := handy.PreferencesGroupNew()
+	group := handy.NewPreferencesGroup()
 	group.SetTitle("Input")
 	group.Add(backendRow)
 	group.Add(deviceRow)
 	group.Add(dualChRow)
 	group.Show()
 
-	page := handy.PreferencesPageNew()
+	page := handy.NewPreferencesPage()
 	page.SetTitle("Audio")
 	page.SetIconName("audio-card-symbolic")
 	page.Add(group)

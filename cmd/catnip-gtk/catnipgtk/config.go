@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 
 	"github.com/diamondburned/catnip-gtk"
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/cairo"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4-handy/pkg/handy"
+	"github.com/diamondburned/gotk4/pkg/cairo"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/pkg/errors"
 )
 
@@ -19,6 +19,10 @@ type Config struct {
 	Input      Input
 	Appearance Appearance
 	Visualizer Visualizer
+	WindowSize struct {
+		Width  int
+		Height int
+	}
 }
 
 // NewConfig creates a new default config.
@@ -27,6 +31,8 @@ func NewConfig() (*Config, error) {
 		Appearance: NewAppearance(),
 		Visualizer: NewVisualizer(),
 	}
+	cfg.WindowSize.Width = 1000
+	cfg.WindowSize.Height = 150
 
 	input, err := NewInput()
 	if err != nil {
@@ -40,28 +46,24 @@ func NewConfig() (*Config, error) {
 
 // ReadUserConfig reads the user's config file at the default user path.
 func ReadUserConfig() (*Config, error) {
-	c, err := ReadConfig(UserConfigPath)
-	if err == nil {
-		return c, nil
-	}
-	return NewConfig()
+	return ReadConfig(UserConfigPath)
 }
 
 // ReadConfig reads the config at the given path.
 func ReadConfig(path string) (*Config, error) {
 	c, err := NewConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to make default config")
+		return c, errors.Wrap(err, "failed to make default config")
 	}
 
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to open config path")
+		return c, errors.Wrap(err, "failed to open config path")
 	}
 	defer f.Close()
 
 	if err := json.NewDecoder(f).Decode(c); err != nil {
-		return nil, errors.Wrap(err, "failed to decode JSON")
+		return c, errors.Wrap(err, "failed to decode JSON")
 	}
 
 	return c, nil
@@ -80,7 +82,7 @@ func (cfg *Config) PreferencesWindow(apply func()) *handy.PreferencesWindow {
 	visualizer := cfg.Visualizer.Page(apply)
 	visualizer.Show()
 
-	window := handy.PreferencesWindowNew()
+	window := handy.NewPreferencesWindow()
 	window.SetSearchEnabled(true)
 	window.SetModal(false)
 	window.Add(input)
@@ -101,7 +103,7 @@ func (cfg Config) Transform() catnip.Config {
 		SampleSize:   cfg.Visualizer.SampleSize,
 		SmoothFactor: cfg.Visualizer.SmoothFactor,
 		MinimumClamp: cfg.Appearance.MinimumClamp,
-		Symmetry:     cfg.Appearance.Symmetry,
+		DrawStyle:    cfg.Appearance.DrawStyle,
 		DrawOptions: catnip.DrawOptions{
 			LineCap:    cfg.Appearance.LineCap.AsLineCap(),
 			LineJoin:   cairo.LINE_JOIN_MITER,

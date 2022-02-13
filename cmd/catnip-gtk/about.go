@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 )
 
 var Version = "tip"
@@ -23,11 +23,11 @@ THIS SOFTWARE.
 `)
 
 func About() *gtk.AboutDialog {
-	about, _ := gtk.AboutDialogNew()
+	about := gtk.NewAboutDialog()
 	about.SetModal(true)
 	about.SetProgramName("catnip-gtk")
 	about.SetVersion(Version)
-	about.SetLicenseType(gtk.LICENSE_MIT_X11)
+	about.SetLicenseType(gtk.LicenseMITX11)
 	about.SetLicense(license)
 	about.SetAuthors([]string{
 		"diamondburned",

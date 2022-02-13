@@ -6,10 +6,9 @@ import (
 	"math"
 	"sync"
 
-	"github.com/gotk3/gotk3/cairo"
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/cairo"
+	"github.com/diamondburned/gotk4/pkg/gdk/v3"
+	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
@@ -19,10 +18,16 @@ import (
 
 type CairoColor [4]float64
 
-func ColorFromGDK(rgba gdk.RGBA) CairoColor {
-	var cairoC CairoColor
-	copy(cairoC[:], rgba.Floats())
-	return cairoC
+func ColorFromGDK(rgba *gdk.RGBA) CairoColor {
+	if rgba == nil {
+		return CairoColor{}
+	}
+	return CairoColor{
+		rgba.Red(),
+		rgba.Green(),
+		rgba.Blue(),
+		rgba.Alpha(),
+	}
 }
 
 func (cc CairoColor) RGBA() (r, g, b, a uint32) {
@@ -42,7 +47,7 @@ var _ DrawQueuer = (*gtk.Widget)(nil)
 
 // Drawer is the separated drawer state without any widget.
 type Drawer struct {
-	drawQ DrawQueuer
+	parent *gtk.Widget
 
 	cfg    Config
 	ctx    context.Context
@@ -67,14 +72,17 @@ type Drawer struct {
 	slowWindow *catniputil.MovingWindow
 	fastWindow *catniputil.MovingWindow
 
-	oldWidth float64
-	scale    float64
-	barCount int
+	// redraw uses atomic.
+	redraw uint32
+
+	background struct {
+		surface *cairo.Surface
+		width   float64
+		height  float64
+	}
 
 	shared struct {
 		sync.Mutex
-		paused bool
-		reproc bool
 
 		// Input buffers.
 		readBuf  [][]input.Sample
@@ -82,16 +90,24 @@ type Drawer struct {
 
 		// Output bars.
 		barBufs [][]input.Sample
+
+		cairoWidth float64
+		barWidth   float64
+		barCount   int
+		scale      float64
+		peak       float64
+
+		paused bool
 	}
 }
 
 // NewDrawer creates a separated drawer state. The given drawQueuer will be
 // called every redrawn frame.
-func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
+func NewDrawer(widget gtk.Widgetter, cfg Config) *Drawer {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	d := &Drawer{
-		drawQ:  drawQ,
+		parent: gtk.BaseWidget(widget),
 		cfg:    cfg,
 		ctx:    ctx,
 		cancel: cancel,
@@ -108,6 +124,21 @@ func NewDrawer(drawQ DrawQueuer, cfg Config) *Drawer {
 	if cfg.Monophonic {
 		d.channels = 1
 	}
+
+	w := gtk.BaseWidget(widget)
+	w.Connect("draw", d.Draw)
+	w.Connect("destroy", d.cancel)
+
+	w.ConnectStyleUpdated(func() {
+		// Invalidate the background.
+		d.background.surface = nil
+
+		styleCtx := w.StyleContext()
+		transparent := gdk.NewRGBA(0, 0, 0, 0)
+
+		d.fg = getColor(d.cfg.Colors.Foreground, styleCtx.Color(gtk.StateFlagNormal), d.fg)
+		d.bg = getColor(d.cfg.Colors.Background, &transparent, d.bg)
+	})
 
 	return d
 }
@@ -134,45 +165,10 @@ func getColor(c color.Color, rgba *gdk.RGBA, fallback CairoColor) (cairoC CairoC
 	}
 
 	if rgba != nil {
-		copy(cairoC[:], rgba.Floats())
-		return
+		return ColorFromGDK(rgba)
 	}
 
 	return fallback
-}
-
-// StyleContexter is the interface to get a style context.
-type StyleContexter interface {
-	GetStyleContext() (*gtk.StyleContext, error)
-}
-
-// SetWidgetStyle lets the Drawer take the given widgetStyler's styles. It
-// doesn't set colors that weren't nil in the config.
-func (d *Drawer) SetWidgetStyle(widgetStyler StyleContexter) {
-	styleCtx, _ := widgetStyler.GetStyleContext()
-
-	d.fg = getColor(d.cfg.Colors.Foreground, styleCtx.GetColor(gtk.STATE_FLAG_NORMAL), d.fg)
-	d.bg = getColor(d.cfg.Colors.Background, gdk.NewRGBA(0, 0, 0, 0), d.bg)
-}
-
-// Connector is the interface to connect any widget.
-type Connector interface {
-	gtk.IWidget
-	AllocatedSizeGetter
-	Connect(string, interface{}) glib.SignalHandle
-}
-
-var _ Connector = (*gtk.Widget)(nil)
-
-// ConnectDraw connects the given connector to the Draw method.
-func (d *Drawer) ConnectDraw(c Connector) glib.SignalHandle {
-	return c.Connect("draw", d.Draw)
-}
-
-// ConnectDestroy connects the destroy signal to destroy the drawer as well. If
-// this method is used, then the caller does not need to call Stop().
-func (d *Drawer) ConnectDestroy(c Connector) glib.SignalHandle {
-	return c.Connect("destroy", func(c Connector) { d.cancel() })
 }
 
 // SetPaused will silent all inputs if true.
@@ -206,41 +202,59 @@ func (d *Drawer) Stop() {
 
 // Draw is bound to the draw signal. Although Draw won't crash if Drawer is not
 // started yet, the drawn result is undefined.
-func (d *Drawer) Draw(w AllocatedSizeGetter, cr *cairo.Context) {
-	var (
-		width  = float64(d.cfg.even(w.GetAllocatedWidth()))
-		height = float64(d.cfg.even(w.GetAllocatedHeight()))
-	)
+func (d *Drawer) Draw(widget gtk.Widgetter, cr *cairo.Context) {
+	w := gtk.BaseWidget(widget)
 
-	// cr.SetSourceRGBA(d.bg[0], d.bg[1], d.bg[2], d.bg[3])
+	alloc := w.Allocation()
+	width := float64(d.cfg.even(alloc.Width()))
+	height := float64(d.cfg.even(alloc.Height()))
 
 	cr.SetAntialias(d.cfg.AntiAlias)
 	cr.SetLineWidth(d.cfg.BarWidth)
 	cr.SetLineJoin(d.cfg.LineJoin)
 	cr.SetLineCap(d.cfg.LineCap)
 
-	cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
+	if d.background.surface == nil || d.background.width != width || d.background.height != height {
+		// Render the background onto the surface and use that as the source
+		// surface for our context.
+		surface := cr.GetTarget().CreateSimilar(cairo.CONTENT_COLOR_ALPHA, int(width), int(height))
+
+		cr := cairo.Create(surface)
+
+		// Draw the user-requested line color.
+		cr.SetSourceRGBA(d.fg[0], d.fg[1], d.fg[2], d.fg[3])
+		cr.Rectangle(0, 0, width, height)
+		cr.Fill()
+
+		// Draw the CSS background.
+		gtk.RenderBackground(w.StyleContext(), cairo.Create(surface), 0, 0, width, height)
+
+		d.background.width = width
+		d.background.height = height
+		d.background.surface = surface
+	}
+
+	cr.SetSourceSurface(d.background.surface, 0, 0)
 
 	d.shared.Lock()
 	defer d.shared.Unlock()
 
-	if d.oldWidth != width {
-		d.oldWidth = width
-		d.barCount = d.spectrum.Recalculate(d.bars(width))
-	}
+	d.shared.cairoWidth = width
 
-	switch d.cfg.Symmetry {
-	case Vertical:
+	switch d.cfg.DrawStyle {
+	case DrawVerticalBars:
 		d.drawVertically(width, height, cr)
-	case Horizontal:
+	case DrawHorizontalBars:
 		d.drawHorizontally(width, height, cr)
+	case DrawLines:
+		d.drawLines(width, height, cr)
 	}
 }
 
 func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 	bins := d.shared.barBufs
 	center := (height - d.cfg.MinimumClamp) / 2
-	scale := center / d.scale
+	scale := center / d.shared.scale
 
 	if center < 0 {
 		center = 0
@@ -255,7 +269,7 @@ func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 	lBins := bins[0]
 	rBins := bins[1%len(bins)]
 
-	for xBin := 0; xBin < d.barCount && xCol < xColMax; xBin++ {
+	for xBin := 0; xBin < d.shared.barCount && xCol < xColMax; xBin++ {
 		lStop := calculateBar(lBins[xBin]*scale, center, d.cfg.MinimumClamp)
 		rStop := calculateBar(rBins[xBin]*scale, center, d.cfg.MinimumClamp)
 
@@ -271,7 +285,7 @@ func (d *Drawer) drawVertically(width, height float64, cr *cairo.Context) {
 
 func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
 	bins := d.shared.barBufs
-	scale := height / d.scale
+	scale := height / d.shared.scale
 
 	delta := 1
 
@@ -282,7 +296,7 @@ func (d *Drawer) drawHorizontally(width, height float64, cr *cairo.Context) {
 	xCol := (d.binWidth)/2 + (width-xColMax)/2
 
 	for _, chBins := range bins {
-		for xBin < d.barCount && xBin >= 0 && xCol < xColMax {
+		for xBin < d.shared.barCount && xBin >= 0 && xCol < xColMax {
 			stop := calculateBar(chBins[xBin]*scale, height, d.cfg.MinimumClamp)
 
 			// Don't draw if stop is NaN for some reason.
@@ -311,4 +325,79 @@ func calculateBar(value, height, clamp float64) float64 {
 	bar += bar * (clamp / height)
 
 	return height - bar
+}
+
+func (d *Drawer) drawLines(width, height float64, cr *cairo.Context) {
+	bins := d.shared.barBufs
+	ceil := calculateBar(0, height, d.cfg.MinimumClamp)
+	scale := height / d.shared.scale
+
+	// Override the bar buffer with the scaled values.
+	for _, ch := range bins {
+		for bar := 0; bar < d.shared.barCount; bar++ {
+			v := calculateBar(ch[bar]*scale, height, d.cfg.MinimumClamp)
+			if math.IsNaN(v) {
+				v = ceil
+			}
+
+			ch[bar] = v
+		}
+	}
+
+	// Flip this to iterate backwards and draw the other channel.
+	delta := +1
+
+	// Round up the width so we don't draw a partial bar.
+	xMax := math.Round(width/d.binWidth) * d.binWidth
+	x := (d.binWidth)/2 + (width-xMax)/2
+
+	// Move to the initial position at the bottom-left corner.
+	// cr.MoveTo(d.cfg.Offsets.apply(x, height-d.cfg.MinimumClamp))
+
+	var bar int
+	var first bool
+
+	for _, ch := range bins {
+		// If we're iterating backwards, then check the lower bound, or
+		// if we're iterating forwards, then check the upper bound.
+		for bar >= 0 && bar < d.shared.barCount && x < xMax {
+			y := ch[bar]
+
+			if first {
+				cr.MoveTo(x, y)
+			} else {
+				if next := bar + delta; next >= 0 && next < len(ch)-1 {
+					// Average out the middle Y point with the next one for
+					// smoothing.
+					quadCurve(cr, x, y, x+d.binWidth, (y+ch[next])/2)
+				} else {
+					// Draw towards the last point.
+					cr.LineTo(x, y)
+				}
+			}
+
+			x += d.binWidth
+			bar += delta
+		}
+
+		delta = -delta
+		bar += delta
+	}
+
+	// Commit the line.
+	cr.Stroke()
+}
+
+// quadCurve draws a quadratic bezier curve into the given Cairo context.
+func quadCurve(t *cairo.Context, p1x, p1y, p2x, p2y float64) {
+	p0x, p0y := t.GetCurrentPoint()
+
+	// https://stackoverflow.com/a/55034115
+	cp1x := p0x + ((2.0 / 3.0) * (p1x - p0x))
+	cp1y := p0y + ((2.0 / 3.0) * (p1y - p0y))
+
+	cp2x := p2x + ((2.0 / 3.0) * (p1x - p2x))
+	cp2y := p2y + ((2.0 / 3.0) * (p1y - p2y))
+
+	t.CurveTo(cp1x, cp1y, cp2x, cp2y, p2x, p2y)
 }

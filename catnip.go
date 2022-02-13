@@ -5,8 +5,8 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/gotk3/gotk3/cairo"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4/pkg/cairo"
+	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
@@ -28,18 +28,20 @@ type Config struct {
 
 	DrawOptions
 
+	DrawStyle  DrawStyle
 	Monophonic bool
-	Symmetry   Symmetry
 }
 
-// Symmetry is the style to draw the bars symmetrically.
-type Symmetry uint8
+// DrawStyle is the style to draw the bars symmetrically.
+type DrawStyle uint8
 
 const (
-	// Vertical is drawing the bars vertically mirrored if stereo.
-	Vertical Symmetry = iota
-	// Horizontal is drawing the bars horizontally mirrored if stereo.
-	Horizontal
+	// VerticalBars is drawing the bars vertically mirrored if stereo.
+	DrawVerticalBars DrawStyle = iota
+	// HorizontalBars is drawing the bars horizontally mirrored if stereo.
+	DrawHorizontalBars
+	// DrawLines draws the spectrum as lines.
+	DrawLines
 )
 
 // WrapExternalWindowFn wraps external (mostly gonum/dsp/window) functions to be
@@ -181,21 +183,15 @@ func (c *Config) InitDevice(b input.Backend) (input.Device, error) {
 
 // Area is the area that Catnip draws onto.
 type Area struct {
+	*gtk.DrawingArea
 	*Drawer
-	gtk.DrawingArea
 }
 
 // New creates a new Catnip DrawingArea from the given config.
 func New(cfg Config) *Area {
-	draw, _ := gtk.DrawingAreaNew()
-
-	drawer := NewDrawer(draw, cfg)
-	drawer.SetWidgetStyle(draw)
-	drawer.ConnectDraw(draw)
-	drawer.ConnectDestroy(draw)
-
+	draw := gtk.NewDrawingArea()
 	return &Area{
-		Drawer:      drawer,
-		DrawingArea: *draw,
+		DrawingArea: draw,
+		Drawer:      NewDrawer(draw, cfg),
 	}
 }

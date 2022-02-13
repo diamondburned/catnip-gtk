@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/diamondburned/catnip-gtk"
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4-handy/pkg/handy"
+	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 	"gonum.org/v1/gonum/dsp/window"
 
 	catnipwindow "github.com/noriah/catnip/dsp/window"
@@ -42,7 +42,7 @@ func NewVisualizer() Visualizer {
 }
 
 func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
-	samplingGroup := handy.PreferencesGroupNew()
+	samplingGroup := handy.NewPreferencesGroup()
 
 	updateSamplingLabel := func() {
 		fₛ := v.SampleRate / float64(v.SampleSize)
@@ -53,53 +53,53 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	}
 	updateSamplingLabel()
 
-	sampleRateSpin, _ := gtk.SpinButtonNewWithRange(4000, 192000, 4000)
-	sampleRateSpin.SetVAlign(gtk.ALIGN_CENTER)
-	sampleRateSpin.SetProperty("digits", 0)
+	sampleRateSpin := gtk.NewSpinButtonWithRange(4000, 192000, 4000)
+	sampleRateSpin.SetVAlign(gtk.AlignCenter)
+	sampleRateSpin.SetDigits(0)
 	sampleRateSpin.SetValue(v.SampleRate)
 	sampleRateSpin.Show()
 	sampleRateSpin.Connect("value-changed", func(sampleRateSpin *gtk.SpinButton) {
-		v.SampleRate = sampleRateSpin.GetValue()
+		v.SampleRate = sampleRateSpin.Value()
 		updateSamplingLabel()
 		apply()
 	})
 
-	sampleRateRow := handy.ActionRowNew()
+	sampleRateRow := handy.NewActionRow()
 	sampleRateRow.Add(sampleRateSpin)
 	sampleRateRow.SetActivatableWidget(sampleRateSpin)
 	sampleRateRow.SetTitle("Sample Rate (Hz)")
 	sampleRateRow.SetSubtitle("The sample rate to record; higher is more accurate.")
 	sampleRateRow.Show()
 
-	sampleSizeSpin, _ := gtk.SpinButtonNewWithRange(1, 102400, 128)
-	sampleSizeSpin.SetVAlign(gtk.ALIGN_CENTER)
-	sampleSizeSpin.SetProperty("digits", 0)
+	sampleSizeSpin := gtk.NewSpinButtonWithRange(1, 102400, 128)
+	sampleSizeSpin.SetVAlign(gtk.AlignCenter)
+	sampleSizeSpin.SetDigits(0)
 	sampleSizeSpin.SetValue(float64(v.SampleSize))
 	sampleSizeSpin.Show()
 	sampleSizeSpin.Connect("value-changed", func(sampleSizeSpin *gtk.SpinButton) {
-		v.SampleSize = sampleSizeSpin.GetValueAsInt()
+		v.SampleSize = sampleSizeSpin.ValueAsInt()
 		updateSamplingLabel()
 		apply()
 	})
 
-	sampleSizeRow := handy.ActionRowNew()
+	sampleSizeRow := handy.NewActionRow()
 	sampleSizeRow.Add(sampleSizeSpin)
 	sampleSizeRow.SetActivatableWidget(sampleSizeSpin)
 	sampleSizeRow.SetTitle("Sample Size")
 	sampleSizeRow.SetSubtitle("The sample size to record; higher is more accurate but slower.")
 	sampleSizeRow.Show()
 
-	frameRateSpin, _ := gtk.SpinButtonNewWithRange(5, 240, 5)
-	frameRateSpin.SetVAlign(gtk.ALIGN_CENTER)
-	frameRateSpin.SetProperty("digits", 0)
+	frameRateSpin := gtk.NewSpinButtonWithRange(5, 240, 5)
+	frameRateSpin.SetVAlign(gtk.AlignCenter)
+	frameRateSpin.SetDigits(0)
 	frameRateSpin.SetValue(float64(v.FrameRate))
 	frameRateSpin.Show()
 	frameRateSpin.Connect("value-changed", func(frameRateSpin *gtk.SpinButton) {
-		v.FrameRate = frameRateSpin.GetValueAsInt()
+		v.FrameRate = frameRateSpin.ValueAsInt()
 		apply()
 	})
 
-	frameRateRow := handy.ActionRowNew()
+	frameRateRow := handy.NewActionRow()
 	frameRateRow.Add(frameRateSpin)
 	frameRateRow.SetActivatableWidget(frameRateSpin)
 	frameRateRow.SetTitle("Frame Rate (fps)")
@@ -112,49 +112,49 @@ func (v *Visualizer) Page(apply func()) *handy.PreferencesPage {
 	samplingGroup.Add(frameRateRow)
 	samplingGroup.Show()
 
-	windowCombo, _ := gtk.ComboBoxTextNew()
-	windowCombo.SetVAlign(gtk.ALIGN_CENTER)
+	windowCombo := gtk.NewComboBoxText()
+	windowCombo.SetVAlign(gtk.AlignCenter)
 	windowCombo.Show()
 	for _, windowFn := range windowFns {
 		windowCombo.Append(string(windowFn), string(windowFn))
 	}
 	windowCombo.SetActiveID(string(v.WindowFn))
 	windowCombo.Connect("changed", func(windowCombo *gtk.ComboBoxText) {
-		v.WindowFn = WindowFn(windowCombo.GetActiveID())
+		v.WindowFn = WindowFn(windowCombo.ActiveID())
 		apply()
 	})
 
-	windowRow := handy.ActionRowNew()
+	windowRow := handy.NewActionRow()
 	windowRow.Add(windowCombo)
 	windowRow.SetActivatableWidget(windowCombo)
 	windowRow.SetTitle("Window Function")
 	windowRow.SetSubtitle("The window function to use for signal processing.")
 	windowRow.Show()
 
-	smoothFactorSpin, _ := gtk.SpinButtonNewWithRange(0, 100, 2)
-	smoothFactorSpin.SetVAlign(gtk.ALIGN_CENTER)
-	smoothFactorSpin.SetProperty("digits", 2)
+	smoothFactorSpin := gtk.NewSpinButtonWithRange(0, 100, 2)
+	smoothFactorSpin.SetVAlign(gtk.AlignCenter)
+	smoothFactorSpin.SetDigits(2)
 	smoothFactorSpin.SetValue(v.SmoothFactor)
 	smoothFactorSpin.Show()
 	smoothFactorSpin.Connect("value-changed", func(smoothFactorSpin *gtk.SpinButton) {
-		v.SmoothFactor = smoothFactorSpin.GetValue()
+		v.SmoothFactor = smoothFactorSpin.Value()
 		apply()
 	})
 
-	smoothFactorRow := handy.ActionRowNew()
+	smoothFactorRow := handy.NewActionRow()
 	smoothFactorRow.Add(smoothFactorSpin)
 	smoothFactorRow.SetActivatableWidget(smoothFactorSpin)
 	smoothFactorRow.SetTitle("Smooth Factor")
 	smoothFactorRow.SetSubtitle("The variable for smoothing; higher means smoother.")
 	smoothFactorRow.Show()
 
-	signalProcGroup := handy.PreferencesGroupNew()
+	signalProcGroup := handy.NewPreferencesGroup()
 	signalProcGroup.SetTitle("Signal Processing")
 	signalProcGroup.Add(windowRow)
 	signalProcGroup.Add(smoothFactorRow)
 	signalProcGroup.Show()
 
-	page := handy.PreferencesPageNew()
+	page := handy.NewPreferencesPage()
 	page.SetTitle("Visualizer")
 	page.SetIconName("preferences-desktop-display-symbolic")
 	page.Add(samplingGroup)

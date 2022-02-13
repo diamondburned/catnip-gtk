@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/diamondburned/catnip-gtk"
-	"github.com/diamondburned/handy"
-	"github.com/gotk3/gotk3/cairo"
-	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/gtk"
+	"github.com/diamondburned/gotk4-handy/pkg/handy"
+	"github.com/diamondburned/gotk4/pkg/cairo"
+	"github.com/diamondburned/gotk4/pkg/gdk/v3"
+	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 )
 
 type Appearance struct {
@@ -21,17 +21,19 @@ type Appearance struct {
 	MinimumClamp float64
 	AntiAlias    AntiAlias
 
-	Symmetry catnip.Symmetry
+	DrawStyle catnip.DrawStyle
 
 	CustomCSS string
 }
 
-func symmetryString(s catnip.Symmetry) string {
+func symmetryString(s catnip.DrawStyle) string {
 	switch s {
-	case catnip.Vertical:
-		return "Vertical"
-	case catnip.Horizontal:
-		return "Horizontal"
+	case catnip.DrawVerticalBars:
+		return "Vertical Bars"
+	case catnip.DrawHorizontalBars:
+		return "Horizontal Bars"
+	case catnip.DrawLines:
+		return "Lines"
 	default:
 		return ""
 	}
@@ -48,75 +50,75 @@ func NewAppearance() Appearance {
 }
 
 func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
-	lineCapCombo, _ := gtk.ComboBoxTextNew()
-	lineCapCombo.SetVAlign(gtk.ALIGN_CENTER)
+	lineCapCombo := gtk.NewComboBoxText()
+	lineCapCombo.SetVAlign(gtk.AlignCenter)
 	addCombo(lineCapCombo, CapButt, CapRound)
 	lineCapCombo.SetActiveID(string(ac.LineCap))
 	lineCapCombo.Show()
 	lineCapCombo.Connect("changed", func(lineCapCombo *gtk.ComboBoxText) {
-		ac.LineCap = LineCap(lineCapCombo.GetActiveID())
+		ac.LineCap = LineCap(lineCapCombo.ActiveID())
 		apply()
 	})
 
-	lineCapRow := handy.ActionRowNew()
+	lineCapRow := handy.NewActionRow()
 	lineCapRow.Add(lineCapCombo)
 	lineCapRow.SetActivatableWidget(lineCapCombo)
-	lineCapRow.SetTitle("Line Cap")
+	lineCapRow.SetTitle("Bar Cap")
 	lineCapRow.SetSubtitle("Whether to draw the bars squared or rounded.")
 	lineCapRow.Show()
 
-	barSpin, _ := gtk.SpinButtonNewWithRange(1, 100, 1)
-	barSpin.SetVAlign(gtk.ALIGN_CENTER)
-	barSpin.SetProperty("digits", 1)
+	barSpin := gtk.NewSpinButtonWithRange(1, 100, 1)
+	barSpin.SetVAlign(gtk.AlignCenter)
+	barSpin.SetDigits(1)
 	barSpin.SetValue(ac.BarWidth)
 	barSpin.Show()
 	barSpin.Connect("value-changed", func(barSpin *gtk.SpinButton) {
-		ac.BarWidth = barSpin.GetValue()
+		ac.BarWidth = barSpin.Value()
 		apply()
 	})
 
-	barRow := handy.ActionRowNew()
+	barRow := handy.NewActionRow()
 	barRow.Add(barSpin)
 	barRow.SetActivatableWidget(barSpin)
-	barRow.SetTitle("Bar Width")
-	barRow.SetSubtitle("The thickness of the bar in arbitrary unit.")
+	barRow.SetTitle("Bar/Line Width")
+	barRow.SetSubtitle("The thickness of the bar or line in arbitrary unit.")
 	barRow.Show()
 
-	spaceSpin, _ := gtk.SpinButtonNewWithRange(0, 100, 1)
-	spaceSpin.SetVAlign(gtk.ALIGN_CENTER)
-	spaceSpin.SetProperty("digits", 1)
+	spaceSpin := gtk.NewSpinButtonWithRange(0, 100, 1)
+	spaceSpin.SetVAlign(gtk.AlignCenter)
+	spaceSpin.SetDigits(3)
 	spaceSpin.SetValue(ac.SpaceWidth)
 	spaceSpin.Show()
 	spaceSpin.Connect("value-changed", func(spaceSpin *gtk.SpinButton) {
-		ac.SpaceWidth = spaceSpin.GetValue()
+		ac.SpaceWidth = spaceSpin.Value()
 		apply()
 	})
 
-	spaceRow := handy.ActionRowNew()
+	spaceRow := handy.NewActionRow()
 	spaceRow.Add(spaceSpin)
 	spaceRow.SetActivatableWidget(spaceSpin)
 	spaceRow.SetTitle("Gap Width")
 	spaceRow.SetSubtitle("The width of the gaps between bars in arbitrary unit.")
 	spaceRow.Show()
 
-	clampSpin, _ := gtk.SpinButtonNewWithRange(0, 25, 1)
-	clampSpin.SetVAlign(gtk.ALIGN_CENTER)
+	clampSpin := gtk.NewSpinButtonWithRange(0, 25, 1)
+	clampSpin.SetVAlign(gtk.AlignCenter)
 	clampSpin.SetValue(ac.MinimumClamp)
 	clampSpin.Show()
 	clampSpin.Connect("value-changed", func(clampSpin *gtk.SpinButton) {
-		ac.MinimumClamp = clampSpin.GetValue()
+		ac.MinimumClamp = clampSpin.Value()
 		apply()
 	})
 
-	clampRow := handy.ActionRowNew()
+	clampRow := handy.NewActionRow()
 	clampRow.Add(clampSpin)
 	clampRow.SetActivatableWidget(clampSpin)
 	clampRow.SetTitle("Clamp Height")
-	clampRow.SetSubtitle("The height at which the bar should be clamped to 0.")
+	clampRow.SetSubtitle("The value at which the bar or line should be clamped to 0.")
 	clampRow.Show()
 
-	aaCombo, _ := gtk.ComboBoxTextNew()
-	aaCombo.SetVAlign(gtk.ALIGN_CENTER)
+	aaCombo := gtk.NewComboBoxText()
+	aaCombo.SetVAlign(gtk.AlignCenter)
 	addCombo(
 		aaCombo,
 		AntiAliasNone,
@@ -129,43 +131,44 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	aaCombo.SetActiveID(string(ac.AntiAlias))
 	aaCombo.Show()
 	aaCombo.Connect("changed", func(aaCombo *gtk.ComboBoxText) {
-		ac.AntiAlias = AntiAlias(aaCombo.GetActiveID())
+		ac.AntiAlias = AntiAlias(aaCombo.ActiveID())
 		apply()
 	})
 
-	aaRow := handy.ActionRowNew()
+	aaRow := handy.NewActionRow()
 	aaRow.Add(aaCombo)
 	aaRow.SetActivatableWidget(aaCombo)
 	aaRow.SetTitle("Anti-Aliasing")
 	aaRow.SetSubtitle("The anti-alias mode to draw with.")
 	aaRow.Show()
 
-	symmCombo, _ := gtk.ComboBoxTextNew()
-	symmCombo.SetVAlign(gtk.ALIGN_CENTER)
-	symmCombo.AppendText(symmetryString(catnip.Vertical))
-	symmCombo.AppendText(symmetryString(catnip.Horizontal))
-	symmCombo.SetActive(int(ac.Symmetry))
-	symmCombo.Show()
-	symmCombo.Connect("changed", func(symmCombo *gtk.ComboBoxText) {
-		ac.Symmetry = catnip.Symmetry(symmCombo.GetActive())
+	styleCombo := gtk.NewComboBoxText()
+	styleCombo.SetVAlign(gtk.AlignCenter)
+	styleCombo.AppendText(symmetryString(catnip.DrawVerticalBars))
+	styleCombo.AppendText(symmetryString(catnip.DrawHorizontalBars))
+	styleCombo.AppendText(symmetryString(catnip.DrawLines))
+	styleCombo.SetActive(int(ac.DrawStyle))
+	styleCombo.Show()
+	styleCombo.Connect("changed", func(symmCombo *gtk.ComboBoxText) {
+		ac.DrawStyle = catnip.DrawStyle(symmCombo.Active())
 		apply()
 	})
 
-	symmRow := handy.ActionRowNew()
-	symmRow.Add(symmCombo)
-	symmRow.SetActivatableWidget(symmCombo)
-	symmRow.SetTitle("Symmetry")
-	symmRow.SetSubtitle("Whether to mirror bars vertically or horizontally.")
-	symmRow.Show()
+	styleRow := handy.NewActionRow()
+	styleRow.Add(styleCombo)
+	styleRow.SetActivatableWidget(styleCombo)
+	styleRow.SetTitle("DrawStyle")
+	styleRow.SetSubtitle("Whether to mirror bars vertically or horizontally.")
+	styleRow.Show()
 
-	barGroup := handy.PreferencesGroupNew()
+	barGroup := handy.NewPreferencesGroup()
 	barGroup.SetTitle("Bars")
 	barGroup.Add(lineCapRow)
 	barGroup.Add(barRow)
 	barGroup.Add(spaceRow)
 	barGroup.Add(clampRow)
 	barGroup.Add(aaRow)
-	barGroup.Add(symmRow)
+	barGroup.Add(styleRow)
 	barGroup.Show()
 
 	fgRow := newColorRow(&ac.ForegroundColor, true, apply)
@@ -178,39 +181,39 @@ func (ac *Appearance) Page(apply func()) *handy.PreferencesPage {
 	bgRow.SetSubtitle("The color of the background window.")
 	bgRow.Show()
 
-	colorGroup := handy.PreferencesGroupNew()
+	colorGroup := handy.NewPreferencesGroup()
 	colorGroup.SetTitle("Colors")
 	colorGroup.Add(fgRow)
 	colorGroup.Add(bgRow)
 	colorGroup.Show()
 
-	cssText, _ := gtk.TextViewNew()
+	cssText := gtk.NewTextView()
 	cssText.SetBorderWidth(5)
 	cssText.SetMonospace(true)
 	cssText.SetAcceptsTab(true)
 	cssText.Show()
 
-	cssBuf, _ := cssText.GetBuffer()
+	cssBuf := cssText.Buffer()
 	cssBuf.SetText(ac.CustomCSS)
 	cssBuf.Connect("changed", func(cssBuf *gtk.TextBuffer) {
-		start, end := cssBuf.GetBounds()
-		ac.CustomCSS, _ = cssBuf.GetText(start, end, false)
+		start, end := cssBuf.Bounds()
+		ac.CustomCSS = cssBuf.Text(start, end, false)
 		apply()
 	})
 
-	textScroll, _ := gtk.ScrolledWindowNew(nil, nil)
-	textScroll.SetPolicy(gtk.POLICY_ALWAYS, gtk.POLICY_NEVER)
+	textScroll := gtk.NewScrolledWindow(nil, nil)
+	textScroll.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyNever)
 	textScroll.SetSizeRequest(-1, 300)
 	textScroll.SetVExpand(true)
 	textScroll.Add(cssText)
 	textScroll.Show()
 
-	cssGroup := handy.PreferencesGroupNew()
+	cssGroup := handy.NewPreferencesGroup()
 	cssGroup.SetTitle("Custom CSS")
 	cssGroup.Add(textScroll)
 	cssGroup.Show()
 
-	page := handy.PreferencesPageNew()
+	page := handy.NewPreferencesPage()
 	page.SetTitle("Appearance")
 	page.SetIconName("applications-graphics-symbolic")
 	page.Add(barGroup)
@@ -228,28 +231,30 @@ func addCombo(c *gtk.ComboBoxText, vs ...interface{}) {
 }
 
 func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
-	color, _ := gtk.ColorButtonNew()
-	color.SetVAlign(gtk.ALIGN_CENTER)
+	color := gtk.NewColorButton()
+	color.SetVAlign(gtk.AlignCenter)
 	color.SetUseAlpha(true)
 	color.Show()
 	color.Connect("color-set", func(interface{}) { // hack around lack of marshaler
-		rgba := color.GetRGBA()
-		cacc := catnip.ColorFromGDK(*rgba)
-
+		cacc := catnip.ColorFromGDK(color.RGBA())
 		*optc = &cacc
 		apply()
 	})
 
-	var defaultRGBA = gdk.NewRGBA(0, 0, 0, 0)
+	var defaultRGBA *gdk.RGBA
 	if fg {
-		style, _ := color.GetStyleContext()
-		defaultRGBA = style.GetColor(gtk.STATE_FLAG_NORMAL)
+		style := color.StyleContext()
+		defaultRGBA = style.Color(gtk.StateFlagNormal)
+	} else {
+		rgba := gdk.NewRGBA(0, 0, 0, 0)
+		defaultRGBA = &rgba
 	}
 
 	var rgba *gdk.RGBA
 	if colorValue := *optc; colorValue != nil {
 		cacc := *colorValue
-		rgba = gdk.NewRGBA(cacc[0], cacc[1], cacc[2], cacc[3])
+		value := gdk.NewRGBA(cacc[0], cacc[1], cacc[2], cacc[3])
+		rgba = &value
 	}
 
 	if rgba != nil {
@@ -258,9 +263,9 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 		color.SetRGBA(defaultRGBA)
 	}
 
-	reset, _ := gtk.ButtonNewFromIconName("edit-undo-symbolic", gtk.ICON_SIZE_BUTTON)
-	reset.SetRelief(gtk.RELIEF_NONE)
-	reset.SetVAlign(gtk.ALIGN_CENTER)
+	reset := gtk.NewButtonFromIconName("edit-undo-symbolic", int(gtk.IconSizeButton))
+	reset.SetRelief(gtk.ReliefNone)
+	reset.SetVAlign(gtk.AlignCenter)
 	reset.SetTooltipText("Revert")
 	reset.Show()
 	reset.Connect("destroy", func(reset *gtk.Button) { color.Destroy() }) // prevent leak
@@ -270,7 +275,7 @@ func newColorRow(optc *OptionalColor, fg bool, apply func()) *handy.ActionRow {
 		apply()
 	})
 
-	row := handy.ActionRowNew()
+	row := handy.NewActionRow()
 	row.AddPrefix(reset)
 	row.Add(color)
 	row.SetActivatableWidget(color)

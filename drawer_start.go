@@ -2,8 +2,9 @@ package catnip
 
 import (
 	"math"
+	"sync/atomic"
 
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
@@ -39,8 +40,8 @@ func (d *Drawer) Start() (err error) {
 		}
 	}
 
-	d.scale = d.cfg.Scaling.StaticScale
-	if d.scale == 0 {
+	d.shared.scale = d.cfg.Scaling.StaticScale
+	if d.shared.scale == 0 {
 		var (
 			slowMax    = int(d.cfg.Scaling.SlowWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
 			fastMax    = int(d.cfg.Scaling.FastWindow*d.cfg.SampleRate) / d.cfg.SampleSize * 2
@@ -102,12 +103,14 @@ func (d *Drawer) Start() (err error) {
 	// Periodically queue redraw. Note that this is never a perfect rounding:
 	// inputting 60Hz will trigger a redraw every 16ms, which is 62.5Hz.
 	ms := 1000 / uint(d.cfg.DrawOptions.FrameRate)
-	timerHandle := glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, func() bool {
-		// Only queue draw if we have a peak noticeable enough.
+	timerHandle := glib.TimeoutAddPriority(ms, glib.PriorityDefault, func() bool {
 		if d.updateBars() {
-			d.drawQ.QueueDraw()
-		}
+			d.shared.Lock()
+			d.updateScale()
+			d.shared.Unlock()
 
+			d.parent.QueueDraw()
+		}
 		return true
 	})
 
@@ -121,39 +124,51 @@ func (d *Drawer) Start() (err error) {
 	return nil
 }
 
-// updateBars updates d.barBufs and such and returns true if a redraw is needed.
+// updateBars returns true if a redraw is needed.
 func (d *Drawer) updateBars() bool {
-	peak := 0.0
+	// return atomic.CompareAndSwapUint32(&d.redraw, 1, 0)
+	return true
+}
 
+// Process processes the internal read buffer and analyzes its spectrum.
+func (d *Drawer) Process() {
 	d.shared.Lock()
-	defer d.shared.Unlock()
+
+	if d.shared.paused {
+		writeZeroBuf(d.shared.readBuf)
+	} else {
+		input.CopyBuffers(d.shared.readBuf, d.shared.writeBuf)
+	}
+
+	d.shared.Unlock()
+	atomic.StoreUint32(&d.redraw, 1)
+}
+
+func (d *Drawer) updateScale() {
+	d.shared.peak = 0
+
+	if d.shared.cairoWidth != d.shared.barWidth {
+		d.shared.barWidth = d.shared.cairoWidth
+		d.shared.barCount = d.spectrum.Recalculate(d.bars(d.shared.barWidth))
+	}
 
 	for idx, buf := range d.shared.barBufs {
-		// Lazily reprocess the buffers only when it's updated.
-		if d.shared.reproc {
-			d.cfg.WindowFn(d.shared.readBuf[idx])
-			d.fftPlans[idx].Execute() // process into buf
-		}
+		d.cfg.WindowFn(d.shared.readBuf[idx])
+		d.fftPlans[idx].Execute() // process from readBuf into buf
 
-		for bIdx := range buf[:d.barCount] {
+		for bIdx := range buf[:d.shared.barCount] {
 			v := d.spectrum.ProcessBin(idx, bIdx, d.fftBuf)
-			d.shared.barBufs[idx][bIdx] = v
+			buf[bIdx] = v
 
-			if peak < v {
-				peak = v
+			if d.shared.peak < v {
+				d.shared.peak = v
 			}
 		}
 	}
 
-	// Reset the reprocess marker.
-	d.shared.reproc = false
-
-	update := peak > 0
-
-	// Only update the scale if we have an audible peak.
-	if d.slowWindow != nil && update {
-		fastMean, _ := d.fastWindow.Update(peak)
-		slowMean, slowStddev := d.slowWindow.Update(peak)
+	if d.slowWindow != nil {
+		fastMean, _ := d.fastWindow.Update(d.shared.peak)
+		slowMean, slowStddev := d.slowWindow.Update(d.shared.peak)
 
 		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
 			if math.Abs(fastMean-slowMean) > (d.cfg.Scaling.ResetDeviation * slowStddev) {
@@ -162,33 +177,20 @@ func (d *Drawer) updateBars() bool {
 			}
 		}
 
+		d.shared.scale = 1
 		if t := slowMean + (1.5 * slowStddev); t > 1.0 {
-			d.scale = t
+			d.shared.scale = t
 		}
 	}
-
-	return update
 }
 
-func (d *Drawer) Process() {
-	d.shared.Lock()
-	defer d.shared.Unlock()
-
-	d.shared.reproc = true
-
-	if d.shared.paused {
-		writeZeroBuf(d.shared.readBuf)
-		return
-	}
-
-	// Copy the audio over.
-	input.CopyBuffers(d.shared.readBuf, d.shared.writeBuf)
-}
+var zeroSamples = make([]input.Sample, 512)
 
 func writeZeroBuf(buf [][]input.Sample) {
 	for i := range buf {
-		for j := range buf[i] {
-			buf[i][j] = 0
+		// Copy zeroSamples into buf[i] in 512-byte chunks. Go's copy() supports
+		// SIMD on most CPUs, so this should be faster than a traditional loop.
+		for n := 0; n < len(buf[i]); n += copy(buf[i][n:], zeroSamples) {
 		}
 	}
 }
@@ -226,7 +228,7 @@ func (d *Drawer) reallocFFTBufs() {
 func (d *Drawer) bars(width float64) int {
 	var bars = float64(width) / d.binWidth
 
-	if d.cfg.Symmetry == Horizontal {
+	if !d.cfg.Monophonic && d.cfg.DrawStyle != DrawHorizontalBars {
 		bars /= float64(d.channels)
 	}
 
