@@ -344,7 +344,8 @@ func (d *Drawer) drawLines(width, height float64, cr *cairo.Context) {
 	ceil := calculateBar(0, height, d.cfg.MinimumClamp)
 	scale := height / d.shared.scale
 
-	// Override the bar buffer with the scaled values.
+	// Override the bar buffer with the scaled values. I'm unsure why this is
+	// needed instead of doing it all in one loop.
 	for _, ch := range bins {
 		for bar := 0; bar < d.shared.barCount; bar++ {
 			v := calculateBar(ch[bar]*scale, height, d.cfg.MinimumClamp)
@@ -359,36 +360,40 @@ func (d *Drawer) drawLines(width, height float64, cr *cairo.Context) {
 	// Flip this to iterate backwards and draw the other channel.
 	delta := +1
 
-	// Round up the width so we don't draw a partial bar.
-	xMax := math.Round(width/d.binWidth) * d.binWidth
-	x := (d.binWidth)/2 + (width-xMax)/2
-
-	// Move to the initial position at the bottom-left corner.
-	// cr.MoveTo(d.cfg.Offsets.apply(x, height-d.cfg.MinimumClamp))
+	x := 0.0
+	// Recalculate the bin width to be equally distributed throughout the width
+	// without any gaps on either end. Ignore the last bar (-1-1) because it
+	// peaks up for some reason.
+	barCount := math.Min(
+		math.Round(width/d.binWidth),
+		float64((d.shared.barCount-2)*d.channels),
+	)
+	binWidth := width / barCount
 
 	var bar int
-	var first bool
+	first := true
 
 	for _, ch := range bins {
 		// If we're iterating backwards, then check the lower bound, or
 		// if we're iterating forwards, then check the upper bound.
-		for bar >= 0 && bar < d.shared.barCount && x < xMax {
+		// Ignore the last bar for the same reason above.
+		for bar >= 0 && bar < d.shared.barCount-1 {
 			y := ch[bar]
 
 			if first {
+				// First.
 				cr.MoveTo(x, y)
+				first = false
+			} else if next := bar + delta; next >= 0 && next < len(ch) {
+				// Average out the middle Y point with the next one for
+				// smoothing.
+				quadCurve(cr, x, y, x+(binWidth)/2, (y+ch[next])/2)
 			} else {
-				if next := bar + delta; next >= 0 && next < len(ch)-1 {
-					// Average out the middle Y point with the next one for
-					// smoothing.
-					quadCurve(cr, x, y, x+d.binWidth, (y+ch[next])/2)
-				} else {
-					// Draw towards the last point.
-					cr.LineTo(x, y)
-				}
+				// Ignore the last point's value and just use the ceiling.
+				cr.LineTo(x, y)
 			}
 
-			x += d.binWidth
+			x += binWidth
 			bar += delta
 		}
 
