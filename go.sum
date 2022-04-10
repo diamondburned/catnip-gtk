@@ -4,8 +4,6 @@ github.com/diamondburned/gotk4-handy/pkg v0.0.0-20220124073946-27c04eb9ee61/go.m
 github.com/diamondburned/gotk4/pkg v0.0.0-20220122222342-2b51f7b628af/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/diamondburned/gotk4/pkg v0.0.0-20220209175856-9ee6939dde9a h1:CPXOniulNpdtNq4lcRKJNZbn+z2W2rhO0HIHmumo7/Q=
 github.com/diamondburned/gotk4/pkg v0.0.0-20220209175856-9ee6939dde9a/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/tavis v0.0.0-20220213030052-69199f71f5bc h1:c2dnPZ8BwaOSqwgkQ7OvFbFBRHz/EqptUP9S4pthjeA=
-github.com/diamondburned/tavis v0.0.0-20220213030052-69199f71f5bc/go.mod h1:gUeDcGBGa68XNOiCn6tkpHcnkMmF4CfMyAQkhEe6SOc=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0/go.mod h1:E/TSTwGwJL78qG/PmXZO1EjYhfJinVAhrmmHX6Z8B9k=
 github.com/integrii/flaggy v1.4.4/go.mod h1:tnTxHeTJbah0gQ6/K0RW0J7fMUBk9MCF5blhm43LNpI=
@@ -13,6 +11,8 @@ github.com/jung-kurt/gofpdf v1.0.3-0.20190309125859-24315acbbda5/go.mod h1:7Id9E
 github.com/lawl/pulseaudio v0.0.0-20200802093727-ab0735955fd0 h1:JrvOwrr1teFiqsp0EQxgEPJsm0pet+YLTL+HdYmnMx0=
 github.com/lawl/pulseaudio v0.0.0-20200802093727-ab0735955fd0/go.mod h1:9h36x4KH7r2V8DOCKoPMt87IXZ++X90y8D5nnuwq290=
 github.com/mattn/go-runewidth v0.0.13/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
+github.com/noriah/catnip v1.0.1-0.20210829202027-9aee3a5d53af h1:1d+nnIF5xlH5VNNp2vcFDbWCik9lEPsHZ27PDOTCWwM=
+github.com/noriah/catnip v1.0.1-0.20210829202027-9aee3a5d53af/go.mod h1:gUeDcGBGa68XNOiCn6tkpHcnkMmF4CfMyAQkhEe6SOc=
 github.com/nsf/termbox-go v0.0.0-20200418040025-38ba6e5628f1/go.mod h1:IuKpRQcYE1Tfu+oAQqaLisqDeXgjyyltCfsaoYN18NQ=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=

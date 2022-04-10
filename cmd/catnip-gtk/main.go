@@ -10,22 +10,10 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v3"
 	"github.com/diamondburned/gotk4/pkg/gtk/v3"
 
-	// Required.
-	"github.com/noriah/catnip/dsp"
 	_ "github.com/noriah/catnip/input/ffmpeg"
 	_ "github.com/noriah/catnip/input/parec"
 	_ "github.com/noriah/catnip/input/portaudio"
 )
-
-func init() {
-	// Weird hacks to reduce catnip's frequency scaling:
-
-	// Start drawing at 20Hz, not 60Hz.
-	dsp.Frequencies[1] = 20
-
-	// Don't scale frequencies below 250Hz differently.
-	dsp.Frequencies[2] = 0
-}
 
 func main() {
 	cfg, err := catnipgtk.ReadUserConfig()
