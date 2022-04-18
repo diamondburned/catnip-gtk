@@ -26,7 +26,7 @@ in unstable.stdenv.mkDerivation rec {
 		glib
 		gtk-layer-shell
 		gdk-pixbuf
-		gobjectIntrospection
+		gobject-introspection
 		libhandy
 		gtk-layer-shell
 		fftw
