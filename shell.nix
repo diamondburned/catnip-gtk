@@ -22,7 +22,7 @@ in unstable.stdenv.mkDerivation rec {
 	CGO_ENABLED = "1";
 
 	buildInputs = with unstable; [
-		gnome.gtk3
+		gtk3
 		glib
 		gtk-layer-shell
 		gdk-pixbuf
